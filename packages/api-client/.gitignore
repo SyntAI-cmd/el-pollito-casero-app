@@ -1,0 +1,2 @@
+# Se regenera desde apps/api/openapi.json en CI y en local con `npm run api:openapi`.
+src/schema.d.ts

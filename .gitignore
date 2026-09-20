@@ -1,0 +1,28 @@
+# Node
+node_modules/
+dist/
+.expo/
+web-build/
+expo-env.d.ts
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generado
+apps/api/openapi.json
+packages/api-client/src/schema.d.ts
+
+# Entorno
+.env
+.env.local
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,19 @@
+{
+  "name": "@pollito/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tipos TypeScript generados desde el OpenAPI de la API. No editar a mano: correr `npm run generate`.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "generate": "openapi-typescript ../../apps/api/openapi.json -o src/schema.d.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "~5.9.0"
+  }
+}
