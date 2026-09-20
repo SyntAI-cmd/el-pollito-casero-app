@@ -1,6 +1,11 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
+import { Platform } from 'react-native';
+
+import { ApiError, apiBaseUrl, type Esquemas } from '@/lib/api';
+import { useSesion } from '@/stores/sesion';
+
 const MAXIMO_BYTES = 3.5 * 1024 * 1024;
 
 export interface Foto {
@@ -55,4 +60,42 @@ async function tamano(uri: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+export type Comprobante = Esquemas['ComprobanteSalida'];
+
+/** Sube la foto como multipart. En web la URI es un blob local; en el celular, un archivo. */
+export async function subirComprobante(
+  foto: Foto,
+  tipo: 'comprobante' | 'remito_firmado',
+  pedidoId: string | null,
+): Promise<Comprobante> {
+  const datos = new FormData();
+  datos.append('tipo', tipo);
+  if (pedidoId) datos.append('pedido_id', pedidoId);
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(foto.uri)).blob();
+    datos.append('archivo', blob, 'foto.jpg');
+  } else {
+    datos.append('archivo', {
+      uri: foto.uri,
+      name: 'foto.jpg',
+      type: 'image/jpeg',
+    } as unknown as Blob);
+  }
+  const respuesta = await fetch(`${apiBaseUrl()}/comprobantes`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${useSesion.getState().acceso ?? ''}` },
+    body: datos,
+  });
+  if (!respuesta.ok) {
+    let mensaje = `Error ${respuesta.status}`;
+    try {
+      mensaje = ((await respuesta.json()) as { mensaje?: string }).mensaje ?? mensaje;
+    } catch {
+      /* sin cuerpo */
+    }
+    throw new ApiError(respuesta.status, mensaje);
+  }
+  return (await respuesta.json()) as Comprobante;
 }

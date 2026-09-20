@@ -124,6 +124,7 @@ async def sembrar() -> None:
 
 
 PREVENTISTAS_PRUEBA = [("Preventista Uno", "prueba.uno"), ("Preventista Dos", "prueba.dos")]
+COBRADOR_PRUEBA = ("Cobrador Prueba", "prueba.cobra")
 
 
 async def sembrar_prueba(fecha: date | None = None) -> None:
@@ -149,6 +150,16 @@ async def sembrar_prueba(fecha: date | None = None) -> None:
                 )
                 sesion.add(fila)
             preventistas.append(fila)
+        cobrador = await sesion.scalar(select(Usuario).where(Usuario.usuario == COBRADOR_PRUEBA[1]))
+        if cobrador is None:
+            cobrador = Usuario(
+                sucursal_id=sucursal.id,
+                nombre=COBRADOR_PRUEBA[0],
+                usuario=COBRADOR_PRUEBA[1],
+                clave_hash=hashear_clave(clave),
+                rol=Rol.COBRADOR,
+            )
+            sesion.add(cobrador)
         await sesion.flush()
 
         clientes: list[Cliente] = []
@@ -164,6 +175,7 @@ async def sembrar_prueba(fecha: date | None = None) -> None:
                     direccion=f"Calle de prueba {n * 100}",
                     localidad="San Martín",
                     preventista_id=preventistas[n % 2].id,
+                    cobrador_id=cobrador.id,
                     lat=Decimal("-33.081") + Decimal(n) / 1000,
                     lng=Decimal("-68.469") - Decimal(n) / 1000,
                 )
@@ -205,7 +217,7 @@ async def borrar_prueba() -> None:
             ).all():
                 await sesion.delete(pedido)
             await sesion.delete(cliente)
-        for _, usuario in PREVENTISTAS_PRUEBA:
+        for _, usuario in [*PREVENTISTAS_PRUEBA, COBRADOR_PRUEBA]:
             fila = await sesion.scalar(select(Usuario).where(Usuario.usuario == usuario))
             if fila is not None:
                 fila.activo = False

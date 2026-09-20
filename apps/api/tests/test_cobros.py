@@ -316,3 +316,30 @@ async def test_archivo_firmado_y_firma_vencida(
                 urls[0].replace("http://localhost:8000", "").replace("firma=", "firma=x")
             )
         ).status_code == 403
+
+
+async def test_pago_parcial_no_cubre_un_pedido_sin_pesar(
+    cliente: AsyncClient,
+    como_admin: dict[str, str],
+    como_preventista: dict[str, str],
+    cliente_con_precios: dict[str, str],
+) -> None:
+    # Pedido a cuenta sin pesar: vale su estimado (12,5 kg de alas × $4.150 = $51.875).
+    datos = pedido_base(cliente_con_precios["id"])
+    datos["items"] = [{"producto_codigo": "alas", "kg": "12.5"}]
+    pedido = (await cliente.post("/pedidos", json=datos, headers=como_preventista)).json()
+    assert pedido["estimado"] == "51875.00" and pedido["total"] == "0.00"
+    pago = await cliente.post(
+        "/pagos",
+        json={
+            "idempotencia": str(uuid.uuid4()),
+            "cliente_id": cliente_con_precios["id"],
+            "partes": [{"medio": "efectivo", "importe": "30000"}],
+        },
+        headers=como_preventista,
+    )
+    assert pago.json()["pedidos_cubiertos"] == []
+    extracto = (
+        await cliente.get(f"/clientes/{cliente_con_precios['id']}/extracto", headers=como_admin)
+    ).json()
+    assert extracto["saldo"] == "21875.00" and extracto["pedidos_pendientes"] == 1

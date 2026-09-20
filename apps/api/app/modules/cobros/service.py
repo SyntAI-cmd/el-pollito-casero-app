@@ -210,6 +210,11 @@ def _pendientes(lista: Sequence[Pedido]) -> list[Pedido]:
     return [p for p in lista if not p.pagado and p.estado is not Estado.CANCELADO]
 
 
+def _importe_en_cuenta(pedido: Pedido) -> Decimal:
+    """Lo que vale en la cuenta: el estimado hasta pesar, el total después (como el cargo)."""
+    return pedido.total if pedido.pesado_en else pedido.estimado
+
+
 async def extracto_de(
     sesion: AsyncSession, quien: Identidad, cliente_id: uuid.UUID
 ) -> ExtractoSalida:
@@ -414,12 +419,12 @@ async def registrar_pago(sesion: AsyncSession, quien: Identidad, datos: PagoEntr
         pago.total = validar_cobro(partes, sum((p.importe for p in partes), CERO))
         todos = await pedidos.a_cuenta_de_cliente(sesion, cliente.id)
         pendientes = _pendientes(todos)
-        pendientes_total = sum((p.total for p in pendientes), CERO)
+        pendientes_total = sum((_importe_en_cuenta(p) for p in pendientes), CERO)
         saldo = await saldo_de(sesion, cliente.id)
         # Crédito no atribuido a ningún pedido: lo ya pagado que excede la deuda pendiente.
         credito_previo = max(pendientes_total - saldo, CERO)
         aplicacion = aplicar_pago(
-            [PedidoPendiente(str(p.id), p.total, p.creado_en) for p in pendientes],
+            [PedidoPendiente(str(p.id), _importe_en_cuenta(p), p.creado_en) for p in pendientes],
             pago.total,
             credito_previo,
         )

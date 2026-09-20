@@ -36,6 +36,9 @@ cd apps/api
 cp .env.example .env
 uv sync
 uv run alembic upgrade head                 # crea el esquema en Postgres
+# Worker de documentos (opcional): con WORKER_MODO=arq en .env, correr aparte
+uv run arq app.workers.settings.WorkerSettings
+# Sin Redis (por defecto WORKER_MODO=inline) los PDF/Excel se generan en el mismo proceso.
 ADMIN_CLAVE=una-clave-larga uv run python -m scripts.semillas   # sucursal, productos, listas, vehículos y usuario admin
 # Opcional: datos de prueba (2 preventistas, 10 clientes "Prueba N", 10 pedidos para hoy)
 ADMIN_CLAVE=... EQUIPO_CLAVE=otra-clave uv run python -m scripts.semillas --prueba   # --borrar-prueba los saca
@@ -74,7 +77,7 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 | 2 | Esquema Alembic + módulos `auth`, `sucursales`, `catalogo`, `clientes`. Cliente TS generado | **Hecha** (ver abajo) |
 | 3 | Módulos `pedidos`, `pesada`, `flota`. WebSockets. Semillas | **Hecha** (ver abajo) |
 | 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, Google Maps, push | **Hecha** (ver abajo) |
-| 5 | Módulo `cobros` + rol cobrador + PDFs y Excel en el worker | Pendiente |
+| 5 | Módulo `cobros` + rol cobrador + PDFs y Excel en el worker | **Hecha** (ver abajo) |
 | 6 | Administración en escritorio | Pendiente |
 
 ### Fase 1 — reglas de negocio puras
@@ -113,6 +116,15 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - Verificado en el navegador contra la API con datos de prueba: login, inicio, balanza (el cajón llegó al servidor con bruto 21,7 → neto 20 y el total se recalculó).
 
 **Pendiente / a verificar**: en Android físico (Expo Go) no se probó desde esta máquina; la key de Google Maps para builds de producción va en `app.json → android.config.googleMaps.apiKey` (Expo Go usa la suya); GPS en segundo plano requiere build de desarrollo con permiso de background. El cobro con foto se construye en la Fase 5 junto con su API.
+
+### Fase 5 — cobros, cobrador y documentos
+
+- **Cobros** (`app/modules/cobros`): `POST /pagos` con partes mixtas (efectivo, transferencia, cheque) que deben sumar el total; transferencia y cheque exigen `comprobante_id` de una foto subida con `POST /comprobantes` (multipart, ≤ 4 MB, guardada en storage con URL firmada servida por `/archivos/...`). Con `pedido_id` es el cobro en la entrega (descuenta el saldo a favor del cliente y marca el pedido pagado); sin `pedido_id` es un pago a cuenta que cubre pedidos enteros del más viejo al más nuevo y deja el sobrante a favor. `idempotencia` generada en el celular: el reintento devuelve el mismo pago.
+- **Cuenta corriente**: `GET /clientes/{id}/extracto` se reconstruye desde pedidos a cuenta (cargo por el estimado original, ajuste al pesar, anulación), pagos y `ajustes_cuenta` (reintegro por pedido borrado, repesada de un pedido pagado, uso de saldo a favor, ajuste manual de administración). Saldo negativo = saldo a favor.
+- **Entrega**: `POST /pedidos/{id}/estado` a `entregado` exige al menos una foto (comprobante o remito firmado).
+- **Cobrador**: `GET /cobranzas/cuentas` (sus clientes con saldo, por zona), `GET /caja?fecha=` (efectivo esperado, transferencias y cheques aparte, cobros del día) y `POST /caja/cierres` (diferencia y nota obligatoria si no cuadra; administración puede cerrar la caja de otro). En la app: pestañas **Cuentas** y **Caja**, y la pantalla de cobro compartida con el preventista (`components/Cobro.tsx`: partes, cámara con reducción a ≤ 3,5 MB, subida del comprobante; un cobro solo en efectivo va por la cola offline).
+- **Documentos** (`app/modules/documentos` + `app/workers`): `POST /documentos` encola y `GET /documentos/{id}` devuelve la URL firmada cuando está listo. Tipos: `remitos` (4 por A4, proporción A6 del talonario, datos fiscales, tabla, cajas adeudadas, saldo, total, firma), `hoja_pedidos` (A4 apaisada por turno y preventista), `hoja_ruta` (26 pedidos por hoja con columnas en blanco y cuadro de rendición), `tickets` (comandera 80 mm, un casillero por caja) y `consolidado` (Excel, una fila por pedido con fórmulas de totales). ReportLab + openpyxl; worker `arq` sobre Redis o modo `inline` sin Redis.
+- 91 tests en la API; verificado en el navegador: cuentas a cobrar y cobro a cuenta del cobrador con datos de prueba (`--prueba` ahora crea también `prueba.cobra`).
 
 ### Fase 0 — qué quedó hecho
 

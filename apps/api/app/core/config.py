@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     # "arq" las encola en Redis para el worker.
     worker_modo: str = "inline"
 
+    # Datos fiscales impresos en el remito (docs/referencia/business.json → fiscal).
+    fiscal_razon_social: str = "EL POLLITO CASERO"
+    fiscal_lema: str = "VENTA POR MAYOR Y MENOR"
+    fiscal_cuit: str = "20-38910784-1"
+    fiscal_iibb: str = "0713799"
+    fiscal_inicio_actividades: str = "17/11/2014"
+    fiscal_condicion_iva: str = "IVA RESPONSABLE INSCRIPTO"
+    fiscal_domicilio: str = "Carril Norte S/N - El Ramblón, Mendoza"
+    fiscal_whatsapp: str = "+54 9 2634 56-9139"
+
 
 @lru_cache
 def get_settings() -> Settings:

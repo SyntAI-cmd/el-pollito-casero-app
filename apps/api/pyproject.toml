@@ -30,6 +30,8 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "aiosqlite>=0.20",
+    "types-openpyxl>=3.1.5.20260827",
+    "types-reportlab>=5.0.0.20260911",
 ]
 
 [build-system]

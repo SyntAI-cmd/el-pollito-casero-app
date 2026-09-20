@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+import app.core.db as db
 import app.core.modelos  # noqa: F401  (registra todas las tablas en Base.metadata)
 from app.core.db import Base, get_sesion
 from app.core.seguridad import Rol, hashear_clave
@@ -46,7 +47,10 @@ async def motor(url_base_test: str) -> AsyncIterator[AsyncEngine]:
             await conexion.execute(text("PRAGMA foreign_keys=ON"))
         await conexion.run_sync(Base.metadata.drop_all)
         await conexion.run_sync(Base.metadata.create_all)
+    # Las tareas del worker (modo inline) abren su propia sesión: que apunte a esta base.
+    db._fabrica = async_sessionmaker(motor, expire_on_commit=False)
     yield motor
+    db._fabrica = None
     await motor.dispose()
 
 

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -14,6 +14,7 @@ import { abrirNavegacion, kilosPesados, llamar } from '@/components/ui/TarjetaPe
 import { Texto } from '@/components/ui/Texto';
 import { api, desenvolver, mensajeDeError } from '@/lib/api';
 import { claves, usePedido } from '@/lib/consultas';
+import { subirComprobante, tomarFoto } from '@/lib/foto';
 import { cajones, horaCorta, kilos, pesos } from '@/lib/formato';
 import { tokens } from '@/theme/tokens';
 
@@ -23,6 +24,24 @@ export default function EntregaEnCurso() {
   const queryClient = useQueryClient();
   const pedido = usePedido(id);
   const [devueltos, setDevueltos] = useState('');
+  const comprobantes = useQuery({
+    queryKey: ['comprobantes', id],
+    enabled: !!id,
+    queryFn: async () =>
+      desenvolver(
+        await api.GET('/pedidos/{pedido_id}/comprobantes', {
+          params: { path: { pedido_id: id } },
+        }),
+      ),
+  });
+  const fotoRemito = useMutation({
+    mutationFn: async () => {
+      const foto = await tomarFoto();
+      if (!foto) return null;
+      return subirComprobante(foto, 'remito_firmado', id);
+    },
+    onSuccess: () => comprobantes.refetch(),
+  });
 
   const marcarEntregado = useMutation({
     mutationFn: async () => {
@@ -198,6 +217,25 @@ export default function EntregaEnCurso() {
               ayuda="Se descuentan de los envases adeudados."
             />
             <View className="mt-4 gap-2">
+              <View className="flex-row items-center justify-between">
+                <Texto variante="body-md" tono={comprobantes.data?.length ? 'exito' : 'peligro'}>
+                  {comprobantes.data?.length
+                    ? `${comprobantes.data.length} ${comprobantes.data.length === 1 ? 'foto' : 'fotos'} (comprobante o remito)`
+                    : 'Sin fotos: sacá la del remito firmado o del comprobante'}
+                </Texto>
+              </View>
+              <Boton
+                texto="Foto del remito firmado"
+                icono="camera"
+                variante="ghost"
+                onPress={() => fotoRemito.mutate()}
+                cargando={fotoRemito.isPending}
+              />
+              {fotoRemito.isError ? (
+                <Texto variante="body-md" tono="peligro">
+                  {mensajeDeError(fotoRemito.error)}
+                </Texto>
+              ) : null}
               <Boton
                 texto="Registrar cobro"
                 icono="cash-register"
@@ -211,6 +249,7 @@ export default function EntregaEnCurso() {
                 icono="check-circle"
                 onPress={() => marcarEntregado.mutate()}
                 cargando={marcarEntregado.isPending}
+                disabled={!comprobantes.data?.length}
               />
               {marcarEntregado.isError ? (
                 <Texto variante="body-md" tono="peligro">
