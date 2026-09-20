@@ -3,21 +3,32 @@ Semillas idempotentes: sucursal, admin, los diez cortes y las listas de precio v
 14/09/2026 (docs/referencia/business.json). Correr con `uv run python -m scripts.semillas`.
 
 Sin ADMIN_CLAVE en el entorno no crea el admin: nada de claves inventadas.
+
+`--prueba` agrega además dos preventistas (clave EQUIPO_CLAVE), diez clientes "Prueba N" y diez
+pedidos para hoy, para probar pesada, carga y reparto sin tocar datos reales.
+`--borrar-prueba` los elimina.
 """
 
 import asyncio
 import os
+import sys
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
 
 import app.core.modelos  # noqa: F401
 from app.core.db import fabrica_sesiones
-from app.core.seguridad import Rol, hashear_clave
+from app.core.seguridad import Identidad, Rol, hashear_clave
+from app.core.tiempo import hoy
 from app.domain.precios import Lista, Turno
 from app.modules.auth.models import Usuario
 from app.modules.catalogo.models import ListaPrecio, Producto
+from app.modules.clientes.models import Cliente
 from app.modules.flota.models import Vehiculo
+from app.modules.pedidos import service as pedidos
+from app.modules.pedidos.models import Pedido
+from app.modules.pedidos.schemas import ItemEntrada, PedidoEntrada
 from app.modules.sucursales.models import Sucursal
 
 PRODUCTOS: list[tuple[str, str, str]] = [
@@ -112,5 +123,100 @@ async def sembrar() -> None:
     print("Semillas aplicadas.")
 
 
+PREVENTISTAS_PRUEBA = [("Preventista Uno", "prueba.uno"), ("Preventista Dos", "prueba.dos")]
+
+
+async def sembrar_prueba(fecha: date | None = None) -> None:
+    fecha = fecha or hoy()
+    clave = os.environ.get("EQUIPO_CLAVE")
+    if not clave:
+        raise SystemExit("Definí EQUIPO_CLAVE para crear los usuarios de prueba")
+    async with fabrica_sesiones()() as sesion:
+        sucursal = await sesion.scalar(select(Sucursal).where(Sucursal.nombre == "Casa central"))
+        admin = await sesion.scalar(select(Usuario).where(Usuario.rol == Rol.ADMIN))
+        if sucursal is None or admin is None:
+            raise SystemExit("Corré primero las semillas base con ADMIN_CLAVE")
+        preventistas: list[Usuario] = []
+        for nombre, usuario in PREVENTISTAS_PRUEBA:
+            fila = await sesion.scalar(select(Usuario).where(Usuario.usuario == usuario))
+            if fila is None:
+                fila = Usuario(
+                    sucursal_id=sucursal.id,
+                    nombre=nombre,
+                    usuario=usuario,
+                    clave_hash=hashear_clave(clave),
+                    rol=Rol.PREVENTISTA,
+                )
+                sesion.add(fila)
+            preventistas.append(fila)
+        await sesion.flush()
+
+        clientes: list[Cliente] = []
+        for n in range(1, 11):
+            nombre = f"Prueba {n}"
+            ficha = await sesion.scalar(select(Cliente).where(Cliente.nombre_comercial == nombre))
+            if ficha is None:
+                ficha = Cliente(
+                    sucursal_id=sucursal.id,
+                    codigo=f"PRUEBA{n:02d}",
+                    razon_social=f"Comercio de prueba {n}",
+                    nombre_comercial=nombre,
+                    direccion=f"Calle de prueba {n * 100}",
+                    localidad="San Martín",
+                    preventista_id=preventistas[n % 2].id,
+                    lat=Decimal("-33.081") + Decimal(n) / 1000,
+                    lng=Decimal("-68.469") - Decimal(n) / 1000,
+                )
+                sesion.add(ficha)
+            clientes.append(ficha)
+        await sesion.commit()
+
+        quien = Identidad(admin.id, sucursal.id, Rol.ADMIN, admin.nombre)
+        existentes = await sesion.scalar(
+            select(Pedido).where(Pedido.fecha_reparto == fecha, Pedido.cliente_id == clientes[0].id)
+        )
+        if existentes is None:
+            for n, cliente in enumerate(clientes, start=1):
+                await pedidos.crear(
+                    sesion,
+                    quien,
+                    PedidoEntrada(
+                        cliente_id=cliente.id,
+                        fecha_reparto=fecha,
+                        turno=Turno.MANANA if n <= 6 else Turno.TARDE,
+                        a_cuenta=n % 3 == 0,
+                        preventista_id=preventistas[n % 2].id,
+                        items=[
+                            ItemEntrada(producto_codigo="entero", cajas=n),
+                            ItemEntrada(producto_codigo="alas", kg=Decimal(5 * n)),
+                        ],
+                        observaciones="Pedido de prueba",
+                    ),
+                )
+    print(f"Datos de prueba listos para {fecha}.")
+
+
+async def borrar_prueba() -> None:
+    async with fabrica_sesiones()() as sesion:
+        filas = (await sesion.scalars(select(Cliente).where(Cliente.codigo.like("PRUEBA%")))).all()
+        for cliente in filas:
+            for pedido in (
+                await sesion.scalars(select(Pedido).where(Pedido.cliente_id == cliente.id))
+            ).all():
+                await sesion.delete(pedido)
+            await sesion.delete(cliente)
+        for _, usuario in PREVENTISTAS_PRUEBA:
+            fila = await sesion.scalar(select(Usuario).where(Usuario.usuario == usuario))
+            if fila is not None:
+                fila.activo = False
+        await sesion.commit()
+    print("Datos de prueba borrados (los usuarios quedan dados de baja).")
+
+
 if __name__ == "__main__":
-    asyncio.run(sembrar())
+    if "--borrar-prueba" in sys.argv:
+        asyncio.run(borrar_prueba())
+    else:
+        asyncio.run(sembrar())
+        if "--prueba" in sys.argv:
+            asyncio.run(sembrar_prueba())

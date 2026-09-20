@@ -131,3 +131,8 @@ async def modificar_usuario(
     registrar(sesion, quien, "usuario.modificar", "usuario", usuario.id, {"campos": sorted(datos)})
     await sesion.commit()
     return usuario
+
+
+async def listar_todos(sesion: AsyncSession) -> list[Usuario]:
+    """Para otros services que necesitan nombres (nota del día, hoja de ruta)."""
+    return list(await repository.listar(sesion, None))

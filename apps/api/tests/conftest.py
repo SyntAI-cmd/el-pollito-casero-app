@@ -6,6 +6,7 @@ Docker); con DATABASE_URL_TEST apuntando a Postgres corren igual (así lo hace C
 import os
 import uuid
 from collections.abc import AsyncIterator
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -144,3 +145,61 @@ async def como_preventista(cliente: AsyncClient, preventista: Usuario) -> dict[s
 @pytest.fixture
 async def como_cobrador(cliente: AsyncClient, cobrador: Usuario) -> dict[str, str]:
     return await entrar(cliente, cobrador)
+
+
+HOY = date(2026, 9, 21)
+
+
+@pytest.fixture
+async def cliente_con_precios(
+    cliente: AsyncClient,
+    como_admin: dict[str, str],
+    sucursal: Sucursal,
+    productos: list[Producto],
+) -> dict[str, str]:
+    await cliente.put(
+        "/precios/listas",
+        json={
+            "sucursal_id": str(sucursal.id),
+            "precios": [
+                {
+                    "producto_codigo": "entero",
+                    "lista": "mayorista",
+                    "turno": "manana",
+                    "precio": "5500",
+                },
+                {
+                    "producto_codigo": "alas",
+                    "lista": "mayorista",
+                    "turno": "manana",
+                    "precio": "4150",
+                },
+            ],
+        },
+        headers=como_admin,
+    )
+    ficha = await cliente.post(
+        "/clientes",
+        json={"razon_social": "Don Pepe", "direccion": "San Martín 123", "localidad": "San Martín"},
+        headers=como_admin,
+    )
+    await cliente.put(
+        f"/clientes/{ficha.json()['id']}/precios",
+        json={"precios": [{"producto_codigo": "entero", "precio": "5000"}]},
+        headers=como_admin,
+    )
+    return ficha.json()
+
+
+def pedido_base(cliente_id: str, **extra: object) -> dict[str, object]:
+    return {
+        "cliente_id": cliente_id,
+        "fecha_reparto": HOY.isoformat(),
+        "turno": "manana",
+        "a_cuenta": True,
+        "items": [
+            {"producto_codigo": "entero", "cajas": 3},
+            {"producto_codigo": "alas", "kg": "12.5"},
+        ],
+        **extra,
+    }

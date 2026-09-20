@@ -1,6 +1,9 @@
 import uuid
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.schemas import Kilos
 
 
 class SucursalEntrada(BaseModel):
@@ -11,6 +14,7 @@ class SucursalEntrada(BaseModel):
 class SucursalCambios(BaseModel):
     nombre: str | None = Field(default=None, min_length=2, max_length=80)
     direccion: str | None = Field(default=None, max_length=200)
+    tara: Decimal | None = Field(default=None, ge=0, le=20, decimal_places=3)
     activa: bool | None = None
 
 
@@ -20,6 +24,7 @@ class SucursalSalida(BaseModel):
     id: uuid.UUID
     nombre: str
     direccion: str
+    tara: Kilos
     activa: bool
 
 

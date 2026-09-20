@@ -216,7 +216,11 @@ async def precios_propios_como_mapa(
 
 
 async def guardar_precios_propios(
-    sesion: AsyncSession, quien: Identidad, cliente_id: uuid.UUID, datos: PreciosPropiosEntrada
+    sesion: AsyncSession,
+    quien: Identidad,
+    cliente_id: uuid.UUID,
+    datos: PreciosPropiosEntrada,
+    commit: bool = True,
 ) -> list[PrecioResuelto]:
     """Cualquier usuario del equipo con acceso al cliente. Precio nulo = borrar el propio."""
     cliente = await obtener(sesion, quien, cliente_id)
@@ -239,7 +243,10 @@ async def guardar_precios_propios(
             fila.precio = precio
         cambios[producto.codigo] = str(precio)
     registrar(sesion, quien, "cliente.precios", "cliente", cliente.id, {"precios": cambios})
-    await sesion.commit()
+    if commit:
+        await sesion.commit()
+    else:
+        await sesion.flush()
     return await precios_resueltos(sesion, quien, cliente_id)
 
 
@@ -285,3 +292,29 @@ async def registrar_envases(
     )
     await sesion.commit()
     return await envases(sesion, quien, cliente_id)
+
+
+async def obtener_interno(sesion: AsyncSession, cliente_id: uuid.UUID) -> Cliente:
+    """Para otros services que ya verificaron el permiso sobre el pedido o el cobro."""
+    cliente = await repository.por_id(sesion, cliente_id)
+    if cliente is None:
+        raise NoEncontrado("Cliente")
+    return cliente
+
+
+async def ajustar_saldo_a_favor(
+    sesion: AsyncSession, quien: Identidad, cliente_id: uuid.UUID, delta: Decimal, motivo: str
+) -> Cliente:
+    """Suma (o resta) saldo a favor. No commitea: viaja en la transacción de quien lo llama."""
+    cliente = await obtener_interno(sesion, cliente_id)
+    anterior = cliente.saldo_a_favor
+    cliente.saldo_a_favor = anterior + delta
+    registrar(
+        sesion,
+        quien,
+        "cliente.saldo_a_favor",
+        "cliente",
+        cliente.id,
+        {"anterior": str(anterior), "delta": str(delta), "motivo": motivo},
+    )
+    return cliente
