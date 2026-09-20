@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://pollito:pollito@localhost:5432/pollito"
     redis_url: str = "redis://localhost:6379/0"
 
-    jwt_secret: str = "cambiar-en-produccion"
+    jwt_secret: str = "solo-desarrollo-cambiar-en-produccion-por-una-clave-larga"
     jwt_acceso_minutos: int = 15
     jwt_refresh_dias: int = 30
 

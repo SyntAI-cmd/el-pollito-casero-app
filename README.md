@@ -35,6 +35,8 @@ docker compose up -d
 cd apps/api
 cp .env.example .env
 uv sync
+uv run alembic upgrade head                 # crea el esquema en Postgres
+ADMIN_CLAVE=una-clave-larga uv run python -m scripts.semillas   # sucursal, productos, listas, vehículos y usuario admin
 uv run uvicorn app.main:app --reload --port 8000
 # → http://localhost:8000/health  ·  http://localhost:8000/docs
 
@@ -45,7 +47,7 @@ npm run mobile:web           # http://localhost:8081
 npm run mobile               # QR para Expo Go en Android
 ```
 
-Para regenerar `apps/api/openapi.json`: `cd apps/api && uv run python scripts/exportar_openapi.py`.
+Para regenerar `apps/api/openapi.json`: `cd apps/api && uv run python -m scripts.exportar_openapi`.
 
 En un celular Android físico la app no llega a `localhost`: copiá `apps/mobile/.env.example` a `.env` y poné la IP de tu PC en `EXPO_PUBLIC_API_URL` (sin `.env`, la app usa la IP que expone Metro).
 
@@ -66,12 +68,26 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 | Fase | Entregable | Estado |
 | --- | --- | --- |
 | 0 | Monorepo, Docker Compose, FastAPI `/health`, Expo en web y Android, CI | **Hecha** (ver abajo) |
-| 1 | `app/domain/` con tests: precios, tara y neto, aplicación de pagos, saldos, numeración de remitos | Pendiente |
-| 2 | Esquema Alembic + módulos `auth`, `sucursales`, `catalogo`, `clientes`. Cliente TS generado | Pendiente |
+| 1 | `app/domain/` con tests: precios, tara y neto, aplicación de pagos, saldos, numeración de remitos | **Hecha** |
+| 2 | Esquema Alembic + módulos `auth`, `sucursales`, `catalogo`, `clientes`. Cliente TS generado | **Hecha** (ver abajo) |
 | 3 | Módulos `pedidos`, `pesada`, `flota`. WebSockets. Semillas | Pendiente |
 | 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, Google Maps, push | Pendiente |
 | 5 | Módulo `cobros` + rol cobrador + PDFs y Excel en el worker | Pendiente |
 | 6 | Administración en escritorio | Pendiente |
+
+### Fase 1 — reglas de negocio puras
+
+`apps/api/app/domain/`: `dinero` (Decimal, jamás float), `precios` (listas por turno y zona, precio propio que pisa la lista, totales solo en el servidor), `pesada` (tara por cajón antes de repartir un lote, cajones idempotentes por id), `pagos` (cobro mixto, comprobante obligatorio en transferencia y cheque, aplicación al pedido más viejo), `saldos` (extracto reconstruido desde pedidos y pagos, envases), `cierre_caja`, `pedidos` (estados y cierre del camión), `remitos` (correlativo de 5 dígitos), `telefonos`. Un test vigila que el dominio no importe FastAPI ni SQLAlchemy.
+
+### Fase 2 — esquema y primeros módulos
+
+- Esquema completo (23 tablas) en `apps/api/alembic/versions/`, generado desde los modelos. UUID en todas las claves, `NUMERIC(12,2)` para importes, `NUMERIC(9,3)` para kilos, `TIMESTAMPTZ`, JSONB para campos flexibles, `sucursal_id` en clientes, pedidos, cajones, cobros y cierres. El correlativo de remitos vive en la tabla `contadores` y se toma con `FOR UPDATE` dentro de la transacción del pedido.
+- Módulos `auth` (login, refresh con rotación, salir, `/auth/yo`, alta y baja de usuarios), `sucursales` (+ zonas), `catalogo` (productos y listas de precio por lista/turno/zona) y `clientes` (ficha, precios propios, precios resueltos, envases). Cada módulo: `router → service → repository → models`; el filtrado por rol se hace en el service: un preventista solo ve sus clientes y los sin asignar, un cobrador solo sus cuentas.
+- Toda operación deja fila en `audit_log` dentro de la misma transacción.
+- Geocoding detrás de `app/integrations/maps.py` (proveedor nulo hasta la Fase 4).
+- Tests de integración (`apps/api/tests/`) sobre base real: SQLite en un archivo temporal si no hay Docker, Postgres si `DATABASE_URL_TEST` está definida (así corre CI, que además aplica las migraciones y verifica con `alembic check` que el esquema no se desvió de los modelos).
+
+**Pendiente de verificar en esta máquina**: las migraciones contra Postgres real (Docker Desktop no levantó: error conocido del socket `dockerInference`; se limpió y relanzó, queda validar en CI o cuando el engine arranque).
 
 ### Fase 0 — qué quedó hecho
 
