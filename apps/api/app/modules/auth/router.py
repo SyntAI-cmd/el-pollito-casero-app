@@ -8,6 +8,7 @@ from app.modules.auth import service
 from app.modules.auth.schemas import (
     LoginEntrada,
     RefreshEntrada,
+    TokenPushEntrada,
     TokensSalida,
     UsuarioCambios,
     UsuarioEntrada,
@@ -41,6 +42,11 @@ async def salir(datos: RefreshEntrada, sesion: Sesion) -> None:
 @router.get("/auth/yo", response_model=UsuarioSalida)
 async def yo(sesion: Sesion, identidad: Actual) -> UsuarioSalida:
     return UsuarioSalida.model_validate(await service.yo(sesion, identidad))
+
+
+@router.post("/auth/push-token", status_code=status.HTTP_204_NO_CONTENT)
+async def registrar_token_push(datos: TokenPushEntrada, sesion: Sesion, identidad: Actual) -> None:
+    await service.registrar_token_push(sesion, identidad, datos)
 
 
 @router.get("/usuarios", response_model=list[UsuarioSalida], tags=["equipo"])

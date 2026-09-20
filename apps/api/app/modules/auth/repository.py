@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.models import SesionRefresh, Usuario
+from app.modules.auth.models import SesionRefresh, TokenPush, Usuario
 
 
 async def por_usuario(sesion: AsyncSession, usuario: str) -> Usuario | None:
@@ -24,3 +24,16 @@ async def listar(sesion: AsyncSession, sucursal_id: uuid.UUID | None) -> Sequenc
 
 async def sesion_refresh(sesion: AsyncSession, jti: uuid.UUID) -> SesionRefresh | None:
     return await sesion.get(SesionRefresh, jti)
+
+
+async def token_push(sesion: AsyncSession, token: str) -> TokenPush | None:
+    return await sesion.scalar(select(TokenPush).where(TokenPush.token == token))
+
+
+async def tokens_push_de(sesion: AsyncSession, usuario_ids: Sequence[uuid.UUID]) -> list[str]:
+    if not usuario_ids:
+        return []
+    filas = await sesion.scalars(
+        select(TokenPush.token).where(TokenPush.usuario_id.in_(usuario_ids))
+    )
+    return list(filas)

@@ -51,3 +51,8 @@ class UsuarioCambios(BaseModel):
     cuit: str | None = Field(default=None, max_length=13)
     activo: bool | None = None
     sucursal_id: uuid.UUID | None = None
+
+
+class TokenPushEntrada(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+    plataforma: str = Field(default="", max_length=20)

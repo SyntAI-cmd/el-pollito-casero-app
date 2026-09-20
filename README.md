@@ -73,7 +73,7 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 | 1 | `app/domain/` con tests: precios, tara y neto, aplicación de pagos, saldos, numeración de remitos | **Hecha** |
 | 2 | Esquema Alembic + módulos `auth`, `sucursales`, `catalogo`, `clientes`. Cliente TS generado | **Hecha** (ver abajo) |
 | 3 | Módulos `pedidos`, `pesada`, `flota`. WebSockets. Semillas | **Hecha** (ver abajo) |
-| 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, Google Maps, push | Pendiente |
+| 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, Google Maps, push | **Hecha** (ver abajo) |
 | 5 | Módulo `cobros` + rol cobrador + PDFs y Excel en el worker | Pendiente |
 | 6 | Administración en escritorio | Pendiente |
 
@@ -99,6 +99,20 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - **WebSocket** `/ws?token=…`: un canal por sucursal, cada evento con los roles que pueden verlo (`pedido.creado`, `pedido.estado`, `pedido.actualizado`, `pedido.eliminado`, `salida.cerrada`, `flota.posicion`). Difusor en memoria; para varios workers se cambia por Redis pub/sub sin tocar los módulos.
 - **Semillas**: `scripts/semillas.py` (base) y `--prueba` / `--borrar-prueba` (datos de prueba, idempotentes).
 - 78 tests (dominio + integración), `mypy --strict` y `ruff` en verde.
+
+### Fase 4 — app del repartidor
+
+- **Sesión**: login con JWT, refresh automático y rotación (un solo refresh en vuelo), persistida en `expo-secure-store` (localStorage en web). Un grupo de rutas por rol: `(reparto)`, `(cobrador)`, `(admin)`; `index` redirige según el rol del token.
+- **Pantallas de campo** (`apps/mobile/src/app/(reparto)/`): Inicio de reparto (métrica del día, salida y GPS, accesos rápidos, entregas prioritarias) · Mis entregas (order cards con stepper, llamar y navegar) · Entrega en curso (mapa, cliente, total a cobrar, envases devueltos, marcar entregado) · Balanza (elegir pedido → producto → bruto; neto en grande; por cajón o por lote; anular con motivo) · Carga del camión (armar salida, marcar cajones, cerrar camión con motivo si hay faltantes) · Cargar pedido (búsqueda de cliente, cajas o kilos, precio editable en la fila con opción de guardarlo como propio).
+- **Offline**: `expo-sqlite` como copia local de lo que la pantalla muestra (`lib/almacen.ts`; localStorage en web) y **cola de mutaciones** (`lib/cola.ts`) con id generada en el celular, reintento en orden que se frena en el primer fallo de red, y rechazos del servidor que no se reintentan sino que se muestran con su mensaje. La pesada se escribe local y se ve al instante (`lib/pesadaLocal.ts`); indicador visible de operaciones pendientes en todas las pantallas.
+- **Tiempo real**: WebSocket a `/ws` con reconexión; los eventos invalidan las consultas.
+- **GPS**: `expo-location` cada 15 s o 25 m mientras la salida está activa (primer plano). **Mapa**: `react-native-maps` con Google en Android; en web un embed de Google Maps con enlace.
+- **Push**: `expo-notifications` registra el token en `POST /auth/push-token`; el servidor avisa al preventista cuando administración le asigna un pedido (`integrations/push.py`, Expo Push).
+- **Cámara**: `lib/foto.ts` saca la foto y la reduce a ≤ 3,5 MB (se usa en el cobro, Fase 5).
+- Sistema de diseño en componentes: `Boton`, `Tarjeta`/`MetricaHero`/`GrillaAccesos`, `Badge`/`Stepper`, `TarjetaPedido`, `Campo`, `NavFlotante` con FAB. Nunca un estado solo con color; área táctil mínima 48 px; numerales tabulares.
+- Verificado en el navegador contra la API con datos de prueba: login, inicio, balanza (el cajón llegó al servidor con bruto 21,7 → neto 20 y el total se recalculó).
+
+**Pendiente / a verificar**: en Android físico (Expo Go) no se probó desde esta máquina; la key de Google Maps para builds de producción va en `app.json → android.config.googleMaps.apiKey` (Expo Go usa la suya); GPS en segundo plano requiere build de desarrollo con permiso de background. El cobro con foto se construye en la Fase 5 junto con su API.
 
 ### Fase 0 — qué quedó hecho
 

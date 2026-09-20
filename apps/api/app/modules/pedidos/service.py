@@ -25,6 +25,7 @@ from app.domain.precios import (
     validar_precio,
 )
 from app.domain.remitos import formatear_numero
+from app.integrations.push import Notificacion, enviador_push
 from app.modules.auditoria.service import registrar
 from app.modules.auth import service as auth
 from app.modules.catalogo import service as catalogo
@@ -203,6 +204,8 @@ async def a_salida(
         cliente_nombre=cliente.nombre_comercial,
         cliente_direccion=cliente.direccion,
         cliente_telefono=cliente.telefono,
+        cliente_lat=cliente.lat,
+        cliente_lng=cliente.lng,
         estado=pedido.estado,
         turno=pedido.turno,
         fecha_reparto=pedido.fecha_reparto,
@@ -342,7 +345,30 @@ async def crear(sesion: AsyncSession, quien: Identidad, datos: PedidoEntrada) ->
     await sesion.commit()
     await sesion.refresh(pedido, attribute_names=["items", "creado_en"])
     await _publicar(pedido, "pedido.creado")
+    await _avisar_asignacion(sesion, quien, pedido, cliente.nombre_comercial)
     return await a_salida(sesion, pedido, [])
+
+
+async def _avisar_asignacion(
+    sesion: AsyncSession, quien: Identidad, pedido: Pedido, cliente_nombre: str
+) -> None:
+    """Push al preventista cuando otro (administración) le carga un pedido."""
+    destinatarios = [
+        u
+        for u in (pedido.preventista_id, pedido.segundo_preventista_id)
+        if u and u != quien.usuario_id
+    ]
+    if not destinatarios:
+        return
+    tokens = await auth.tokens_push_de(sesion, destinatarios)
+    await enviador_push().enviar(
+        tokens,
+        Notificacion(
+            titulo=f"Pedido #{formatear_numero(pedido.numero)}",
+            cuerpo=f"{cliente_nombre} · {pedido.fecha_reparto:%d/%m} {pedido.turno}",
+            datos={"pedido_id": str(pedido.id)},
+        ),
+    )
 
 
 async def listar(

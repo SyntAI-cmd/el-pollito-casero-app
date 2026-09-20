@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Sequence
 from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,8 +19,8 @@ from app.core.seguridad import (
 from app.core.tiempo import ahora
 from app.modules.auditoria.service import registrar
 from app.modules.auth import repository
-from app.modules.auth.models import SesionRefresh, Usuario
-from app.modules.auth.schemas import UsuarioCambios, UsuarioEntrada
+from app.modules.auth.models import SesionRefresh, TokenPush, Usuario
+from app.modules.auth.schemas import TokenPushEntrada, UsuarioCambios, UsuarioEntrada
 
 
 def identidad_de(usuario: Usuario) -> Identidad:
@@ -136,3 +137,22 @@ async def modificar_usuario(
 async def listar_todos(sesion: AsyncSession) -> list[Usuario]:
     """Para otros services que necesitan nombres (nota del día, hoja de ruta)."""
     return list(await repository.listar(sesion, None))
+
+
+async def registrar_token_push(
+    sesion: AsyncSession, quien: Identidad, datos: TokenPushEntrada
+) -> None:
+    """Idempotente: el mismo token cambia de dueño si otro usuario entra en el mismo celular."""
+    fila = await repository.token_push(sesion, datos.token)
+    if fila is None:
+        fila = TokenPush(usuario_id=quien.usuario_id, token=datos.token, actualizado_en=ahora())
+        sesion.add(fila)
+    else:
+        fila.usuario_id = quien.usuario_id
+        fila.actualizado_en = ahora()
+    fila.plataforma = datos.plataforma
+    await sesion.commit()
+
+
+async def tokens_push_de(sesion: AsyncSession, usuario_ids: Sequence[uuid.UUID]) -> list[str]:
+    return await repository.tokens_push_de(sesion, usuario_ids)

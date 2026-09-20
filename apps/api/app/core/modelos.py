@@ -1,7 +1,7 @@
 """Importa todos los modelos para que Base.metadata (Alembic, tests) vea el esquema completo."""
 
 from app.modules.auditoria.models import AuditLog
-from app.modules.auth.models import SesionRefresh, Usuario
+from app.modules.auth.models import SesionRefresh, TokenPush, Usuario
 from app.modules.catalogo.models import ListaPrecio, Producto
 from app.modules.clientes.models import Cliente, MovimientoEnvases, PrecioCliente
 from app.modules.cobros.models import CierreCaja, Comprobante, Pago
@@ -32,6 +32,7 @@ __all__ = [
     "SalidaTrack",
     "SesionRefresh",
     "Sucursal",
+    "TokenPush",
     "Usuario",
     "Vehiculo",
     "Zona",

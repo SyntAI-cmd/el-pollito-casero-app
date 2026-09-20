@@ -31,3 +31,14 @@ class SesionRefresh(ConId, Base):
     expira_en: Mapped[datetime] = mapped_column(FechaHora)
     revocado_en: Mapped[datetime | None] = mapped_column(FechaHora)
     creado_en: Mapped[datetime] = mapped_column(FechaHora)
+
+
+class TokenPush(ConId, Base):
+    """Token de push de Expo por dispositivo. Un usuario puede tener varios (celular y tablet)."""
+
+    __tablename__ = "tokens_push"
+
+    usuario_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    token: Mapped[str] = mapped_column(String(200), unique=True)
+    plataforma: Mapped[str] = mapped_column(String(20), default="")
+    actualizado_en: Mapped[datetime] = mapped_column(FechaHora)
