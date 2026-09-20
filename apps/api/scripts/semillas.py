@@ -21,7 +21,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 import app.core.modelos  # noqa: F401
-from app.core.db import fabrica_sesiones
+from app.core.db import engine, fabrica_sesiones
 from app.core.seguridad import Identidad, Rol, hashear_clave
 from app.core.tiempo import hoy
 from app.domain.precios import Lista, Turno
@@ -275,12 +275,20 @@ async def borrar_prueba() -> None:
     print("Datos de prueba borrados (los usuarios quedan dados de baja).")
 
 
+async def principal(argumentos: list[str]) -> None:
+    # Un solo event loop: el pool de asyncpg no sobrevive a un segundo `asyncio.run`.
+    try:
+        if "--borrar-prueba" in argumentos:
+            await borrar_prueba()
+            return
+        await sembrar()
+        if "--equipo" in argumentos:
+            await sembrar_equipo()
+        if "--prueba" in argumentos:
+            await sembrar_prueba()
+    finally:
+        await engine().dispose()
+
+
 if __name__ == "__main__":
-    if "--borrar-prueba" in sys.argv:
-        asyncio.run(borrar_prueba())
-    else:
-        asyncio.run(sembrar())
-        if "--equipo" in sys.argv:
-            asyncio.run(sembrar_equipo())
-        if "--prueba" in sys.argv:
-            asyncio.run(sembrar_prueba())
+    asyncio.run(principal(sys.argv[1:]))
