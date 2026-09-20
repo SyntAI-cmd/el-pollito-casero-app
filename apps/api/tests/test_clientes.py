@@ -30,7 +30,6 @@ async def test_alta_normaliza_el_telefono_y_calcula_el_estado_de_ficha(
     ficha = creado.json()
     assert ficha["telefono"] == "5492635551234"
     assert ficha["estado_ficha"] == "revisar"  # sin coordenadas todavía
-    assert ficha["saldo_a_favor"] == "0.00"
 
     sin_cuit = await cliente.post(
         "/clientes", json={**FICHA, "cuit": None, "telefono": None}, headers=como_admin

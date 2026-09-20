@@ -26,3 +26,6 @@ packages/api-client/src/schema.d.ts
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Archivos subidos y documentos generados en desarrollo
+apps/api/data/

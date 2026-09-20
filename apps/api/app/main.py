@@ -9,6 +9,7 @@ from app.core.ws_router import router as ws_router
 from app.modules.auth.router import router as auth_router
 from app.modules.catalogo.router import router as catalogo_router
 from app.modules.clientes.router import router as clientes_router
+from app.modules.cobros.router import router as cobros_router
 from app.modules.flota.router import router as flota_router
 from app.modules.pedidos.router import router as pedidos_router
 from app.modules.pesada.router import router as pesada_router
@@ -24,7 +25,7 @@ class Salud(BaseModel):
 def crear_app() -> FastAPI:
     settings = get_settings()
     configurar_logging(settings.entorno)
-    app = FastAPI(title=settings.app_name, version="0.3.0")
+    app = FastAPI(title=settings.app_name, version="0.5.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -45,6 +46,7 @@ def crear_app() -> FastAPI:
     app.include_router(pedidos_router)
     app.include_router(pesada_router)
     app.include_router(flota_router)
+    app.include_router(cobros_router)
     app.include_router(ws_router)
     return app
 

@@ -3,6 +3,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from types import ModuleType
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -113,21 +114,31 @@ async def recalcular(
         item.importe = renglon.importe
     total_anterior = pedido.total
     pedido.subtotal = totales.subtotal
-    pedido.estimado = totales.estimado
+    # `estimado` queda como se cargó: es el cargo original del extracto; la balanza agrega el resto.
     pedido.total = totales.subtotal
     if not totales.sin_pesar and pedido.pesado_en is None:
         pedido.pesado_en = ahora()
     if totales.sin_pesar:
         pedido.pesado_en = None
     if pedido.pagado and pedido.total != total_anterior:
-        await clientes.ajustar_saldo_a_favor(
+        # Ya cobrado por otro importe: la diferencia va a la cuenta (a favor si pagó de más).
+        await _cobros().registrar_ajuste(
             sesion,
             quien,
             pedido.cliente_id,
-            total_anterior - pedido.total,
+            _cobros().TipoAjuste.REPESADA,
+            pedido.total - total_anterior,
             f"Pedido {formatear_numero(pedido.numero)} recalculado después de pagado",
+            referencia=formatear_numero(pedido.numero),
         )
     return totales
+
+
+def _cobros() -> ModuleType:
+    """cobros importa pedidos; se importa acá adentro para no cerrar el círculo al cargar."""
+    from app.modules.cobros import service as cobros
+
+    return cobros
 
 
 def _evento(
@@ -467,6 +478,7 @@ async def cambiar_estado(
     pedido.estado = transicionar(anterior, datos.estado)
     momento = ahora()
     if datos.estado is Estado.ENTREGADO:
+        await _cobros().verificar_cierre_entrega(sesion, pedido.id)
         pedido.entregado_en = momento
     if datos.estado is Estado.CANCELADO:
         if not (datos.motivo and datos.motivo.strip()):
@@ -492,12 +504,14 @@ async def eliminar(sesion: AsyncSession, quien: Identidad, pedido_id: uuid.UUID)
     pedido = await obtener_modelo(sesion, quien, pedido_id)
     salida = await a_salida(sesion, pedido)
     if pedido.pagado and pedido.total > CERO:
-        await clientes.ajustar_saldo_a_favor(
+        await _cobros().registrar_ajuste(
             sesion,
             quien,
             pedido.cliente_id,
-            pedido.total,
+            _cobros().TipoAjuste.REINTEGRO,
+            -pedido.total,
             f"Reintegro por pedido {salida.numero} borrado",
+            referencia=salida.numero,
         )
     registrar(
         sesion,
@@ -652,3 +666,21 @@ async def publicar_despacho(pedidos: Sequence[Pedido]) -> None:
 
 async def modelos_de_salida(sesion: AsyncSession, salida_id: uuid.UUID) -> list[Pedido]:
     return list(await repository.listar(sesion, sucursal_id=None, salida_id=salida_id, limite=2000))
+
+
+# ---------- para cobros ----------
+
+
+async def a_cuenta_de_cliente(sesion: AsyncSession, cliente_id: uuid.UUID) -> list[Pedido]:
+    """Todos los pedidos a cuenta del cliente (incluye cancelados: el extracto los revierte)."""
+    pedidos = await repository.listar(sesion, sucursal_id=None, cliente_id=cliente_id, limite=5000)
+    return [p for p in pedidos if p.a_cuenta]
+
+
+async def marcar_pagados(
+    sesion: AsyncSession, quien: Identidad, pedidos: Sequence[Pedido], pago_id: uuid.UUID
+) -> None:
+    """No commitea: viaja en la transacción del cobro."""
+    for pedido in pedidos:
+        pedido.pagado = True
+        _evento(sesion, pedido, "pagado", quien, pago_id=str(pago_id))

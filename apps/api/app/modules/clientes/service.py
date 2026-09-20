@@ -302,19 +302,22 @@ async def obtener_interno(sesion: AsyncSession, cliente_id: uuid.UUID) -> Client
     return cliente
 
 
-async def ajustar_saldo_a_favor(
-    sesion: AsyncSession, quien: Identidad, cliente_id: uuid.UUID, delta: Decimal, motivo: str
-) -> Cliente:
-    """Suma (o resta) saldo a favor. No commitea: viaja en la transacción de quien lo llama."""
-    cliente = await obtener_interno(sesion, cliente_id)
-    anterior = cliente.saldo_a_favor
-    cliente.saldo_a_favor = anterior + delta
-    registrar(
-        sesion,
-        quien,
-        "cliente.saldo_a_favor",
-        "cliente",
-        cliente.id,
-        {"anterior": str(anterior), "delta": str(delta), "motivo": motivo},
+async def visibles_para_cobrar(sesion: AsyncSession, quien: Identidad) -> list[Cliente]:
+    """Clientes que el usuario puede cobrar (el rol se aplica en el repositorio)."""
+    return list(
+        await repository.listar(
+            sesion,
+            sucursal_id=None if quien.rol is Rol.ADMIN else quien.sucursal_id,
+            solo_de_preventista=quien.usuario_id if quien.rol is Rol.PREVENTISTA else None,
+            solo_de_cobrador=quien.usuario_id if quien.rol is Rol.COBRADOR else None,
+            limite=5000,
+        )
     )
-    return cliente
+
+
+async def saldo_envases_de(sesion: AsyncSession, cliente: Cliente) -> int:
+    filas = await repository.movimientos_envases(sesion, cliente.id)
+    return saldo_envases(
+        [EnvasesDominio(f.fecha, f.dejados, f.devueltos, str(f.id)) for f in filas],
+        ajuste=cliente.ajuste_envases,
+    )

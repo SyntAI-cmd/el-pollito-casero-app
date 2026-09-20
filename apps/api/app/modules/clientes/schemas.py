@@ -71,7 +71,6 @@ class ClienteSalida(BaseModel):
     preventista_id: uuid.UUID | None
     cobrador_id: uuid.UUID | None
     credito_habilitado: bool
-    saldo_a_favor: Importe
     ajuste_envases: int
     estado_ficha: EstadoFicha
     observaciones: str

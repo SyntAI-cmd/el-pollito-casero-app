@@ -180,8 +180,11 @@ async def test_borrar_pedido_pagado_devuelve_saldo_a_favor_y_deja_auditoria(
 
     assert (await cliente.delete(f"/pedidos/{pedido['id']}", headers=como_admin)).status_code == 204
     assert (await cliente.get(f"/pedidos/{pedido['id']}", headers=como_admin)).status_code == 404
-    ficha = await cliente.get(f"/clientes/{cliente_con_precios['id']}", headers=como_admin)
-    assert Decimal(ficha.json()["saldo_a_favor"]) == Decimal("300000.00")  # 60 kg × $5.000
+    extracto = await cliente.get(
+        f"/clientes/{cliente_con_precios['id']}/extracto", headers=como_admin
+    )
+    assert Decimal(extracto.json()["saldo_a_favor"]) == Decimal("300000.00")  # 60 kg × $5.000
+    assert extracto.json()["lineas"][-1]["tipo"] == "reintegro"
 
     from sqlalchemy import select
 

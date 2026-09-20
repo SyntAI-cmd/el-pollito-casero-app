@@ -19,6 +19,13 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:8081", "http://localhost:19006"]
 
+    # Archivos (fotos, PDFs, Excel) y URL con la que la app llega a la API para descargarlos.
+    data_dir: str = "./data"
+    url_publica: str = "http://localhost:8000"
+    # "inline" ejecuta las tareas del worker en el mismo proceso (desarrollo sin Redis, tests);
+    # "arq" las encola en Redis para el worker.
+    worker_modo: str = "inline"
+
 
 @lru_cache
 def get_settings() -> Settings:

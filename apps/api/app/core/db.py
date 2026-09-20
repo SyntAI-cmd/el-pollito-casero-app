@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends
@@ -39,11 +39,17 @@ class ConId:
 class ConFechas:
     """Fechas en TIMESTAMPTZ; la zona se interpreta como America/Argentina/Mendoza al mostrar."""
 
+    # Se fija en Python (microsegundos) y no con el reloj de la base: el extracto ordena por
+    # fecha y SQLite solo da segundos con CURRENT_TIMESTAMP.
     creado_en: Mapped[datetime] = mapped_column(
-        FechaHora, server_default=func.now(), nullable=False
+        FechaHora, default=lambda: datetime.now(UTC), server_default=func.now(), nullable=False
     )
     actualizado_en: Mapped[datetime] = mapped_column(
-        FechaHora, server_default=func.now(), onupdate=func.now(), nullable=False
+        FechaHora,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        nullable=False,
     )
 
 
