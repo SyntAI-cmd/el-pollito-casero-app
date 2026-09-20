@@ -104,6 +104,12 @@ async def resumen_caja(
     return await service.resumen_caja(sesion, quien, fecha, usuario_id)
 
 
+@router.get("/caja/rendicion", response_model=list[ResumenCaja])
+async def rendicion_del_dia(fecha: date, sesion: Sesion, quien: SoloAdmin) -> list[ResumenCaja]:
+    """Rendición del día: una caja por cobrador o preventista que cobró."""
+    return await service.rendicion_del_dia(sesion, quien, fecha)
+
+
 @router.post("/caja/cierres", response_model=CierreSalida, status_code=status.HTTP_201_CREATED)
 async def cerrar_caja(datos: CierreEntrada, sesion: Sesion, quien: Equipo) -> CierreSalida:
     return await service.cerrar(sesion, quien, datos)

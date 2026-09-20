@@ -121,6 +121,18 @@ export function useSucursales() {
   });
 }
 
+export function useUsuarios(habilitado = true) {
+  return useQuery({
+    queryKey: ['usuarios'],
+    enabled: habilitado,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () =>
+      conCopiaLocal<Esquemas['UsuarioSalida'][]>('usuarios', async () =>
+        desenvolver(await api.GET('/usuarios')),
+      ),
+  });
+}
+
 export function useNotaDelDia(fecha: string) {
   return useQuery({
     queryKey: claves.nota(fecha),

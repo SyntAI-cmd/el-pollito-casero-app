@@ -583,3 +583,17 @@ async def cierres_del_dia(
         CierreSalida.model_validate(c)
         for c in await repository.cierres_del_dia(sesion, fecha, None)
     ]
+
+
+async def rendicion_del_dia(
+    sesion: AsyncSession, quien: Identidad, fecha: date
+) -> list[ResumenCaja]:
+    """Una caja por persona que cobró ese día (o que ya la cerró), para la pantalla de rendición."""
+    if quien.rol is not Rol.ADMIN:
+        raise SinPermiso("Solo administración ve la rendición completa")
+    desde = inicio_del_dia(fecha)
+    pagos = await repository.pagos_entre(sesion, desde, desde + timedelta(days=1))
+    cierres = await repository.cierres_del_dia(sesion, fecha, None)
+    usuarios = {p.cobrado_por for p in pagos} | {c.usuario_id for c in cierres}
+    resumenes = [await resumen_caja(sesion, quien, fecha, u) for u in usuarios]
+    return sorted(resumenes, key=lambda r: r.usuario_nombre)

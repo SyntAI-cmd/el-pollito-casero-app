@@ -78,7 +78,7 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 | 3 | Módulos `pedidos`, `pesada`, `flota`. WebSockets. Semillas | **Hecha** (ver abajo) |
 | 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, Google Maps, push | **Hecha** (ver abajo) |
 | 5 | Módulo `cobros` + rol cobrador + PDFs y Excel en el worker | **Hecha** (ver abajo) |
-| 6 | Administración en escritorio | Pendiente |
+| 6 | Administración en escritorio | **Hecha** (ver abajo) |
 
 ### Fase 1 — reglas de negocio puras
 
@@ -125,6 +125,21 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - **Cobrador**: `GET /cobranzas/cuentas` (sus clientes con saldo, por zona), `GET /caja?fecha=` (efectivo esperado, transferencias y cheques aparte, cobros del día) y `POST /caja/cierres` (diferencia y nota obligatoria si no cuadra; administración puede cerrar la caja de otro). En la app: pestañas **Cuentas** y **Caja**, y la pantalla de cobro compartida con el preventista (`components/Cobro.tsx`: partes, cámara con reducción a ≤ 3,5 MB, subida del comprobante; un cobro solo en efectivo va por la cola offline).
 - **Documentos** (`app/modules/documentos` + `app/workers`): `POST /documentos` encola y `GET /documentos/{id}` devuelve la URL firmada cuando está listo. Tipos: `remitos` (4 por A4, proporción A6 del talonario, datos fiscales, tabla, cajas adeudadas, saldo, total, firma), `hoja_pedidos` (A4 apaisada por turno y preventista), `hoja_ruta` (26 pedidos por hoja con columnas en blanco y cuadro de rendición), `tickets` (comandera 80 mm, un casillero por caja) y `consolidado` (Excel, una fila por pedido con fórmulas de totales). ReportLab + openpyxl; worker `arq` sobre Redis o modo `inline` sin Redis.
 - 91 tests en la API; verificado en el navegador: cuentas a cobrar y cobro a cuenta del cobrador con datos de prueba (`--prueba` ahora crea también `prueba.cobra`).
+
+### Fase 6 — administración en escritorio
+
+- Grupo `(admin)` con barra lateral oscura en ≥ 1024 px (tira horizontal en pantallas chicas), contenido a 1280 px máximo. Pantallas: **Nota del día** (noticias del equipo, totales por producto, pedidos por preventista, accesos a pesar/cargar/imprimir), **Pedidos** (lista densa con columnas fijas o tarjetas, filtros por fecha/turno/estado/preventista, y **vista partida 7/5** con la ficha del pedido: mapa, renglones con precio editable, comprobantes, cambio de estado, cancelación con motivo, borrado), **Cargar pedido** (formulario compartido con el repartidor + preventista y segundo preventista), **Clientes** (lista, alta, ficha editable, precios propios, envases, ajuste manual y extracto), **Listas de precios** (producto × lista por turno y zona; Ctrl+Enter guarda), **Balanza** y **Carga** (las pantallas de piso), **Flota en vivo** (última posición y recorrido por camión, armar salida, cerrar camión), **Rendición** (una caja por persona con cierre y comprobantes del día), **Imprimir** (genera y descarga/comparte/imprime los documentos), **Equipo** (usuarios y vehículos), **Sucursales** (tara y zonas).
+- API: módulo `comunicacion` (`/noticias`, `/mensajes`, con eventos por WebSocket) y `GET /caja/rendicion`.
+- Verificado en el navegador como admin con datos de prueba: nota del día y vista partida de pedidos. 94 tests en la API; `tsc`, `eslint` y `jest` en verde en la app.
+
+### Qué falta (para después de la Fase 6)
+
+- Probar en Android físico y hacer el build con EAS (`eas build -p android`), con la key de Google Maps.
+- Deploy: Railway con Postgres + Redis + worker (`arq`) y `WORKER_MODO=arq`; storage S3-compatible en lugar del disco local (`integrations/storage.py`).
+- Rol `cliente` (catálogo, sus pedidos, seguimiento, cuenta corriente y envases).
+- Optimización de paradas con Routes API y geocoding real en `integrations/maps.py` (hoy proveedor nulo).
+- GPS en segundo plano (build de desarrollo con permiso de background).
+- Chat interno en la app (la API ya lo tiene).
 
 ### Fase 0 — qué quedó hecho
 
