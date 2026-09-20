@@ -10,7 +10,7 @@ from app.domain.precios import Lista, Turno
 
 
 class Producto(ConId, ConFechas, Base):
-    """Los diez cortes. `codigo` es el id de dominio ("entero", "alas"…) de precios y pedidos."""
+    """Cortes del catálogo. `codigo` es el id de dominio ("entero", "alas"…) de los precios."""
 
     __tablename__ = "productos"
 

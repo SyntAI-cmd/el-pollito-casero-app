@@ -71,6 +71,7 @@ async def solicitar(
             "turno": datos.turno,
             "preventista_id": str(preventista_id) if preventista_id else None,
             "pedido_ids": [str(x) for x in datos.pedido_ids],
+            "formato": datos.formato,
             # Los permisos del que pidió el documento se aplican al armar los datos en el worker.
             "quien": {
                 "usuario_id": str(quien.usuario_id),
@@ -112,6 +113,7 @@ async def generar(sesion: AsyncSession, documento_id: uuid.UUID) -> None:
             Turno(parametros["turno"]) if parametros.get("turno") else None,
             uuid.UUID(parametros["preventista_id"]) if parametros.get("preventista_id") else None,
             [uuid.UUID(x) for x in parametros.get("pedido_ids", [])],
+            formato=str(parametros.get("formato") or "a4"),
         )
         renderer, tipo_mime, _ = RENDERERS[documento.tipo]
         contenido = renderer(contexto)

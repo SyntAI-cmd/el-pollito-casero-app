@@ -1,3 +1,4 @@
+import os
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -89,6 +90,30 @@ async def test_remitos_de_pedidos_puntuales_van_de_a_cuatro_por_hoja(
     contenido = await descargar(cliente, documento["url"])
     # 5 remitos → 2 hojas A4.
     assert contenido.count(b"/Type /Page") - contenido.count(b"/Type /Pages") == 2
+
+
+async def test_remitos_en_10x15_van_uno_por_pagina(
+    cliente: AsyncClient,
+    como_admin: dict[str, str],
+    dia_con_pedidos: list[dict[str, object]],
+) -> None:
+    documento = await pedir(
+        cliente,
+        como_admin,
+        tipo="remitos",
+        formato="10x15",
+        pedido_ids=[p["id"] for p in dia_con_pedidos],
+    )
+    contenido = await descargar(cliente, documento["url"])
+    assert contenido.count(b"/Type /Page") - contenido.count(b"/Type /Pages") == 5
+    assert b"/MediaBox [ 0 0 283.46" in contenido  # 100 × 150 mm en puntos
+    if muestra := os.environ.get("MUESTRA_REMITOS"):  # para mirar el PDF a ojo
+        a4 = await pedir(
+            cliente, como_admin, tipo="remitos", pedido_ids=[p["id"] for p in dia_con_pedidos]
+        )
+        contenido_a4 = await descargar(cliente, a4["url"])
+        Path(muestra).write_bytes(contenido)  # noqa: ASYNC240
+        Path(muestra).with_name("remitos-a4.pdf").write_bytes(contenido_a4)  # noqa: ASYNC240
 
 
 async def test_consolidado_excel_tiene_una_fila_por_pedido(

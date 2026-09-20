@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 import app.core.db as db
 import app.core.modelos  # noqa: F401  (registra todas las tablas en Base.metadata)
@@ -41,7 +42,9 @@ def url_base_test(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 @pytest.fixture(scope="session")
 async def motor(url_base_test: str) -> AsyncIterator[AsyncEngine]:
-    motor = create_async_engine(url_base_test)
+    # Sin pool: el motor vive toda la sesión pero cada test corre en su propio event loop, y una
+    # conexión asyncpg abierta en un loop no se puede reutilizar en otro.
+    motor = create_async_engine(url_base_test, poolclass=NullPool)
     async with motor.begin() as conexion:
         if motor.dialect.name == "sqlite":
             await conexion.execute(text("PRAGMA foreign_keys=ON"))

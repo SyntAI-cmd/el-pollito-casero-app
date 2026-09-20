@@ -39,7 +39,7 @@ async def test_productos_y_listas_de_precio(
 ) -> None:
     lista = await cliente.get("/productos", headers=como_preventista)
     assert [p["codigo"] for p in lista.json()][:3] == ["entero", "cuarto_trasero", "alas"]
-    assert len(lista.json()) == 10
+    assert len(lista.json()) == 12  # diez cortes + suprema de muslo + "otro"
 
     precios = {
         "sucursal_id": str(sucursal.id),

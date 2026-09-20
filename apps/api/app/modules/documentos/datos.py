@@ -22,8 +22,10 @@ from app.modules.pedidos.schemas import PedidoSalida
 @dataclass
 class DatosCliente:
     cuit: str | None
-    saldo: Decimal  # cuenta corriente antes de este remito no: saldo actual
+    saldo: Decimal  # saldo actual de la cuenta corriente
     envases: int
+    localidad: str | None = None
+    telefono: str | None = None
 
 
 @dataclass
@@ -36,6 +38,7 @@ class Contexto:
     fiscal: Settings
     preventista_id: uuid.UUID | None = None
     vehiculos: dict[uuid.UUID, str] = field(default_factory=dict)
+    formato: str = "a4"  # remitos: "a4" (4 por hoja) o "10x15" (uno por página)
 
     def nombre(self, usuario_id: uuid.UUID | None) -> str:
         return self.nombres.get(usuario_id, "Sin asignar") if usuario_id else "Sin asignar"
@@ -56,6 +59,7 @@ async def armar(
     turno: Turno | None,
     preventista_id: uuid.UUID | None,
     pedido_ids: list[uuid.UUID],
+    formato: str = "a4",
 ) -> Contexto:
     if pedido_ids:
         lista = [await pedidos.obtener(sesion, quien, pid) for pid in pedido_ids]
@@ -74,6 +78,8 @@ async def armar(
             cuit=cliente.cuit,
             saldo=await cobros.saldo_de(sesion, cliente.id),
             envases=await clientes.saldo_envases_de(sesion, cliente),
+            localidad=cliente.localidad,
+            telefono=cliente.telefono,
         )
     return Contexto(
         fecha=fecha,
@@ -83,4 +89,5 @@ async def armar(
         nombres={u.id: u.nombre for u in await auth.listar_todos(sesion)},
         fiscal=get_settings(),
         preventista_id=preventista_id,
+        formato=formato,
     )

@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { Redirect } from 'expo-router';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
 
 import { Boton } from '@/components/ui/Boton';
 import { Campo } from '@/components/ui/Campo';
@@ -38,9 +38,12 @@ export default function Login() {
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="flex-grow justify-center p-gutter web:w-full web:max-w-[440px] web:self-center">
         <View className="mb-8">
-          <Texto variante="label-caps" tono="claro-suave">
-            El Pollito Casero
-          </Texto>
+          <Image
+            source={require('../../assets/marca/logo.png')}
+            accessibilityLabel="El Pollito Casero"
+            style={{ width: 132, height: 90, marginBottom: 16 }}
+            resizeMode="contain"
+          />
           <Texto variante="display" tono="claro">
             Entrar
           </Texto>

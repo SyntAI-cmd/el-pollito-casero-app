@@ -21,7 +21,7 @@ const TIPOS: { valor: Tipo; etiqueta: string; detalle: string }[] = [
     etiqueta: 'Hoja de pedidos',
     detalle: 'A4 apaisada, por turno y preventista',
   },
-  { valor: 'remitos', etiqueta: 'Remitos', detalle: '4 por hoja A4, talonario 10 × 15' },
+  { valor: 'remitos', etiqueta: 'Remitos', detalle: 'Igual al talonario: 4 por hoja A4 o de a uno en 10 × 15' },
   {
     valor: 'hoja_ruta',
     etiqueta: 'Hoja de ruta y rendición',
@@ -59,6 +59,7 @@ export default function Imprimir() {
   const [fecha, setFecha] = useState(hoyIso());
   const [turno, setTurno] = useState<'manana' | 'tarde' | null>(null);
   const [preventista, setPreventista] = useState<string | null>(null);
+  const [formato, setFormato] = useState<'a4' | '10x15'>('a4');
   const usuarios = useUsuarios();
   const documentos = useQuery({
     queryKey: ['documentos', fecha],
@@ -70,7 +71,7 @@ export default function Imprimir() {
     mutationFn: async (tipo: Tipo) =>
       desenvolver(
         await api.POST('/documentos', {
-          body: { tipo, fecha, turno, preventista_id: preventista },
+          body: { tipo, fecha, turno, preventista_id: preventista, formato },
         }),
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['documentos', fecha] }),
@@ -94,6 +95,15 @@ export default function Imprimir() {
             .map((u) => ({ valor: u.id, etiqueta: u.nombre }))}
           valor={preventista}
           onCambio={setPreventista}
+        />
+        <Chips
+          opciones={[
+            { valor: 'a4', etiqueta: 'Remitos: 4 por hoja A4' },
+            { valor: '10x15', etiqueta: 'Remitos: talonario 10 × 15' },
+          ]}
+          valor={formato}
+          onCambio={(v) => setFormato(v ?? 'a4')}
+          permitirNinguno={false}
         />
       </Seccion>
       <View className="flex-row flex-wrap gap-3">

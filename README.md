@@ -20,7 +20,7 @@ pollito-casero/
 │  └─ api/           # FastAPI. app/core · app/domain · app/modules · app/integrations · app/workers
 ├─ packages/
 │  └─ api-client/    # tipos TS generados del OpenAPI (no editar a mano)
-└─ docs/             # PROMPT.md (especificación), diseno/ (Stitch), referencia/ (reglas del sistema viejo)
+└─ docs/             # PROMPT.md (especificación), diseno/ (pantallas de referencia de Stitch)
 ```
 
 ## Levantar todo desde cero
@@ -40,6 +40,8 @@ uv run alembic upgrade head                 # crea el esquema en Postgres
 uv run arq app.workers.settings.WorkerSettings
 # Sin Redis (por defecto WORKER_MODO=inline) los PDF/Excel se generan en el mismo proceso.
 ADMIN_CLAVE=una-clave-larga uv run python -m scripts.semillas   # sucursal, productos, listas, vehículos y usuario admin
+# Equipo real (admins, preventistas y cobradores) con una clave inicial que cada uno cambia después
+ADMIN_CLAVE=... EQUIPO_CLAVE=clave-inicial uv run python -m scripts.semillas --equipo
 # Opcional: datos de prueba (2 preventistas, 10 clientes "Prueba N", 10 pedidos para hoy)
 ADMIN_CLAVE=... EQUIPO_CLAVE=otra-clave uv run python -m scripts.semillas --prueba   # --borrar-prueba los saca
 uv run uvicorn app.main:app --reload --port 8000
@@ -54,7 +56,15 @@ npm run mobile               # QR para Expo Go en Android
 
 Para regenerar `apps/api/openapi.json`: `cd apps/api && uv run python -m scripts.exportar_openapi`.
 
-En un celular Android físico la app no llega a `localhost`: copiá `apps/mobile/.env.example` a `.env` y poné la IP de tu PC en `EXPO_PUBLIC_API_URL` (sin `.env`, la app usa la IP que expone Metro).
+En un celular Android físico la app no llega a `localhost`: copiá `apps/mobile/.env.example` a `.env` y poné la IP de tu PC en `EXPO_PUBLIC_API_URL` (sin `.env`, la app usa la IP que expone Metro). La API tiene que escuchar en todas las interfaces: `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000`, y Windows tiene que dejar pasar los puertos 8000 y 8081 en el firewall (red privada).
+
+### Claves externas
+
+| Variable | Dónde | Para qué |
+|---|---|---|
+| `GOOGLE_MAPS_API_KEY` | `apps/api/.env` (servidor) | Geocoding API: dirección → coordenadas al dar de alta o cambiar la dirección de un cliente. Restringir la clave **por API** (solo Geocoding; Routes cuando se implemente). Sin clave, el cliente queda "a revisar" y se ubica a mano. |
+| `GOOGLE_MAPS_ANDROID_KEY` | entorno al hacer el build con EAS | Maps SDK for Android para el mapa nativo. Restringir **por aplicación** (package `ar.com.pollitocasero.app` + SHA-1 del build). Expo Go no la necesita. |
+| `JWT_SECRET`, `DATABASE_URL`, `REDIS_URL`, `URL_PUBLICA`, `WORKER_MODO=arq` | Railway | Producción (ver "Qué falta"). |
 
 ## Verificación
 
@@ -92,7 +102,7 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - Geocoding detrás de `app/integrations/maps.py` (proveedor nulo hasta la Fase 4).
 - Tests de integración (`apps/api/tests/`) sobre base real: SQLite en un archivo temporal si no hay Docker, Postgres si `DATABASE_URL_TEST` está definida (así corre CI, que además aplica las migraciones y verifica con `alembic check` que el esquema no se desvió de los modelos).
 
-**Pendiente de verificar en esta máquina**: las migraciones contra Postgres real (Docker Desktop no levantó: error conocido del socket `dockerInference`; se limpió y relanzó, queda validar en CI o cuando el engine arranque).
+Migraciones verificadas contra Postgres 16 real (`alembic upgrade head` + `alembic check`) y los 100 tests corren en verde tanto en SQLite como en Postgres (`DATABASE_URL_TEST`). Si Docker Desktop no arranca con "The file cannot be accessed by the system" sobre un `.sock`, renombrar las carpetas `%LOCALAPPDATA%\Docker\run` y `%LOCALAPPDATA%\docker-secrets-engine` y relanzarlo.
 
 ### Fase 3 — pedidos, pesada, flota y tiempo real
 
@@ -123,7 +133,7 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - **Cuenta corriente**: `GET /clientes/{id}/extracto` se reconstruye desde pedidos a cuenta (cargo por el estimado original, ajuste al pesar, anulación), pagos y `ajustes_cuenta` (reintegro por pedido borrado, repesada de un pedido pagado, uso de saldo a favor, ajuste manual de administración). Saldo negativo = saldo a favor.
 - **Entrega**: `POST /pedidos/{id}/estado` a `entregado` exige al menos una foto (comprobante o remito firmado).
 - **Cobrador**: `GET /cobranzas/cuentas` (sus clientes con saldo, por zona), `GET /caja?fecha=` (efectivo esperado, transferencias y cheques aparte, cobros del día) y `POST /caja/cierres` (diferencia y nota obligatoria si no cuadra; administración puede cerrar la caja de otro). En la app: pestañas **Cuentas** y **Caja**, y la pantalla de cobro compartida con el preventista (`components/Cobro.tsx`: partes, cámara con reducción a ≤ 3,5 MB, subida del comprobante; un cobro solo en efectivo va por la cola offline).
-- **Documentos** (`app/modules/documentos` + `app/workers`): `POST /documentos` encola y `GET /documentos/{id}` devuelve la URL firmada cuando está listo. Tipos: `remitos` (4 por A4, proporción A6 del talonario, datos fiscales, tabla, cajas adeudadas, saldo, total, firma), `hoja_pedidos` (A4 apaisada por turno y preventista), `hoja_ruta` (26 pedidos por hoja con columnas en blanco y cuadro de rendición), `tickets` (comandera 80 mm, un casillero por caja) y `consolidado` (Excel, una fila por pedido con fórmulas de totales). ReportLab + openpyxl; worker `arq` sobre Redis o modo `inline` sin Redis.
+- **Documentos** (`app/modules/documentos` + `app/workers`): `POST /documentos` encola y `GET /documentos/{id}` devuelve la URL firmada cuando está listo. Tipos: `remitos` (réplica del talonario impreso de 10 × 15: logo, cuadro X, datos fiscales, N° y fecha, cliente/calle/localidad/cel., 12 renglones KILOS · DETALLE · PRECIO X UNIDAD · PRECIO TOTAL, CAJAS ADEUDADAS con saldo de cuenta corriente y TOTAL; `formato: "a4"` imprime 4 por hoja con marcas de corte y `"10x15"` uno por página para el talonario), `hoja_pedidos` (A4 apaisada por turno y preventista), `hoja_ruta` (26 pedidos por hoja con columnas en blanco y cuadro de rendición), `tickets` (comandera 80 mm, un casillero por caja) y `consolidado` (Excel, una fila por pedido con fórmulas de totales). ReportLab + openpyxl; worker `arq` sobre Redis o modo `inline` sin Redis.
 - 91 tests en la API; verificado en el navegador: cuentas a cobrar y cobro a cuenta del cobrador con datos de prueba (`--prueba` ahora crea también `prueba.cobra`).
 
 ### Fase 6 — administración en escritorio
@@ -132,12 +142,19 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - API: módulo `comunicacion` (`/noticias`, `/mensajes`, con eventos por WebSocket) y `GET /caja/rendicion`.
 - Verificado en el navegador como admin con datos de prueba: nota del día y vista partida de pedidos. 94 tests en la API; `tsc`, `eslint` y `jest` en verde en la app.
 
-### Qué falta (para después de la Fase 6)
+### Después de la Fase 6 — hecho
 
-- Probar en Android físico y hacer el build con EAS (`eas build -p android`), con la key de Google Maps.
+- Logo real en la app (ícono, splash, login) y en el remito; remito igual al talonario, en A4 (4 por hoja) o 10 × 15.
+- Geocoding con Google (`GeocodificadorGoogle`, acotado a Mendoza, con tests) activado por `GOOGLE_MAPS_API_KEY`; clave de Android por `GOOGLE_MAPS_ANDROID_KEY` en `app.config.js`.
+- Semillas `--equipo` con el equipo real; catálogo con "Suprema de muslo" y "Otro producto" (sin lista: precio propio por pedido).
+- Postgres real validado con Docker; `docs/referencia` (datos del sistema viejo con teléfonos y CUITs) fuera del repo y de su historia.
+
+### Qué falta
+
+- Probar en Android físico (Expo Go) y hacer el build con EAS (`eas build -p android`) con `GOOGLE_MAPS_ANDROID_KEY`.
 - Deploy: Railway con Postgres + Redis + worker (`arq`) y `WORKER_MODO=arq`; storage S3-compatible en lugar del disco local (`integrations/storage.py`).
 - Rol `cliente` (catálogo, sus pedidos, seguimiento, cuenta corriente y envases).
-- Optimización de paradas con Routes API y geocoding real en `integrations/maps.py` (hoy proveedor nulo).
+- Optimización de paradas con Routes API (`integrations/maps.py` tiene la interfaz; falta la implementación).
 - GPS en segundo plano (build de desarrollo con permiso de background).
 - Chat interno en la app (la API ya lo tiene).
 
@@ -153,5 +170,4 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 ### Fase 0 — qué falta o quedó a verificar
 
 - **Android**: la app se levanta con `npm run mobile` y Expo Go; no se probó en un dispositivo desde esta máquina (sin emulador). Web sí quedó verificada contra la API en vivo.
-- **Docker Compose**: escrito pero no levantado en esta máquina (Docker Desktop apagado). Se valida en la Fase 2, cuando la API empiece a usar Postgres.
-- CI no corrió todavía porque el repositorio es local; corre en el primer push.
+- **Docker Compose**: quedó validado en la Fase 2+ (ver arriba).

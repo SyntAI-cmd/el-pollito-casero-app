@@ -1,8 +1,11 @@
 """
-Semillas idempotentes: sucursal, admin, los diez cortes y las listas de precio vigentes al
-14/09/2026 (docs/referencia/business.json). Correr con `uv run python -m scripts.semillas`.
+Semillas idempotentes: sucursal, admin, los cortes del catálogo y las listas de precio vigentes al
+14/09/2026 (las mismas del sistema anterior). Correr con `uv run python -m scripts.semillas`.
 
 Sin ADMIN_CLAVE en el entorno no crea el admin: nada de claves inventadas.
+
+`--equipo` crea los usuarios reales del equipo (EQUIPO, abajo) con la clave inicial EQUIPO_CLAVE;
+cada uno la cambia después desde Equipo. Es idempotente: no toca a los que ya existen.
 
 `--prueba` agrega además dos preventistas (clave EQUIPO_CLAVE), diez clientes "Prueba N" y diez
 pedidos para hoy, para probar pesada, carga y reparto sin tocar datos reales.
@@ -42,9 +45,12 @@ PRODUCTOS: list[tuple[str, str, str]] = [
     ("pechuga_con_alas", "Pechuga con alas", "Pechuga entera con las alas, con piel."),
     ("muslo", "Muslo", "Muslos frescos con piel."),
     ("garras", "Garras", "Patas de pollo frescas y limpias."),
+    ("suprema_muslo", "Suprema de muslo", "Muslo deshuesado, sin piel."),
+    ("otro", "Otro producto", "Renglón libre: huevos, chorizos, un corte especial…"),
 ]
 
 # (mayorista, intermedio, minorista) por kilo. Base: pollo entero mayorista $5.500.
+# Suprema de muslo y "otro" no tienen lista: se cargan con precio propio en cada pedido.
 PRECIOS: dict[str, tuple[str, str, str]] = {
     "entero": ("5500", "6000", "6500"),
     "cuarto_trasero": ("5150", "5620", "6090"),
@@ -57,6 +63,24 @@ PRECIOS: dict[str, tuple[str, str, str]] = {
     "muslo": ("5940", "6480", "7020"),
     "garras": ("750", "820", "890"),
 }
+
+# Equipo real: (nombre, usuario, rol). Un usuario tiene un solo rol; Maxi reparte y también
+# cobra, así que entra dos veces (maxi / maxi.cobros).
+EQUIPO: list[tuple[str, str, Rol]] = [
+    ("Mauro", "mauro", Rol.ADMIN),
+    ("Ro", "ro", Rol.ADMIN),
+    ("Cinthia", "cinthia", Rol.ADMIN),
+    ("Seba", "seba", Rol.ADMIN),
+    ("Franco", "franco", Rol.PREVENTISTA),
+    ("Maxi", "maxi", Rol.PREVENTISTA),
+    ("Andrés", "andres", Rol.PREVENTISTA),
+    ("Nahuel", "nahuel", Rol.PREVENTISTA),
+    ("Chino", "chino", Rol.PREVENTISTA),
+    ("Miguel", "miguel", Rol.PREVENTISTA),
+    ("Carlos", "carlos", Rol.PREVENTISTA),
+    ("María", "maria", Rol.COBRADOR),
+    ("Maxi (cobros)", "maxi.cobros", Rol.COBRADOR),
+]
 
 VEHICULOS: list[tuple[str, str, str]] = [
     ("Toyota Hino", "A974NR", "Camión"),
@@ -121,6 +145,32 @@ async def sembrar() -> None:
             )
         await sesion.commit()
     print("Semillas aplicadas.")
+
+
+async def sembrar_equipo() -> None:
+    clave = os.environ.get("EQUIPO_CLAVE")
+    if not clave:
+        raise SystemExit("Definí EQUIPO_CLAVE (clave inicial, cada uno la cambia después)")
+    async with fabrica_sesiones()() as sesion:
+        sucursal = await sesion.scalar(select(Sucursal).where(Sucursal.nombre == "Casa central"))
+        if sucursal is None:
+            raise SystemExit("Corré primero las semillas base")
+        creados = []
+        for nombre, usuario, rol in EQUIPO:
+            if await sesion.scalar(select(Usuario).where(Usuario.usuario == usuario)):
+                continue
+            sesion.add(
+                Usuario(
+                    sucursal_id=sucursal.id,
+                    nombre=nombre,
+                    usuario=usuario,
+                    clave_hash=hashear_clave(clave),
+                    rol=rol,
+                )
+            )
+            creados.append(usuario)
+        await sesion.commit()
+    print(f"Equipo: {len(creados)} usuarios nuevos ({', '.join(creados) or 'ninguno'}).")
 
 
 PREVENTISTAS_PRUEBA = [("Preventista Uno", "prueba.uno"), ("Preventista Dos", "prueba.dos")]
@@ -230,5 +280,7 @@ if __name__ == "__main__":
         asyncio.run(borrar_prueba())
     else:
         asyncio.run(sembrar())
+        if "--equipo" in sys.argv:
+            asyncio.run(sembrar_equipo())
         if "--prueba" in sys.argv:
             asyncio.run(sembrar_prueba())
