@@ -1,10 +1,7 @@
-from decimal import Decimal
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.integrations.maps import Coordenadas, GeocodificadorNulo, usar_geocodificador
 from app.modules.auth.models import Usuario
 from app.modules.catalogo.models import Producto
 from app.modules.sucursales.models import Sucursal
@@ -29,7 +26,14 @@ async def test_alta_normaliza_el_telefono_y_calcula_el_estado_de_ficha(
     assert creado.status_code == 201, creado.text
     ficha = creado.json()
     assert ficha["telefono"] == "5492635551234"
-    assert ficha["estado_ficha"] == "revisar"  # sin coordenadas todavía
+    assert ficha["estado_ficha"] == "completa"  # con CUIT, dirección y localidad
+
+    sin_direccion = await cliente.post(
+        "/clientes",
+        json={**FICHA, "nombre_comercial": "Sin calle", "telefono": None, "direccion": ""},
+        headers=como_admin,
+    )
+    assert sin_direccion.json()["estado_ficha"] == "revisar"
 
     sin_cuit = await cliente.post(
         "/clientes", json={**FICHA, "cuit": None, "telefono": None}, headers=como_admin
@@ -42,22 +46,6 @@ async def test_alta_normaliza_el_telefono_y_calcula_el_estado_de_ficha(
         "/clientes", json={**FICHA, "telefono": "1234"}, headers=como_admin
     )
     assert telefono_invalido.status_code == 422
-
-
-async def test_geocoding_completa_la_ficha_cuando_hay_proveedor(
-    cliente: AsyncClient, como_admin: dict[str, str]
-) -> None:
-    class Falso:
-        async def geocodificar(self, direccion: str, localidad: str) -> Coordenadas:
-            return Coordenadas(Decimal("-33.081"), Decimal("-68.469"))
-
-    usar_geocodificador(Falso())
-    try:
-        creado = await cliente.post("/clientes", json=FICHA, headers=como_admin)
-    finally:
-        usar_geocodificador(GeocodificadorNulo())
-    assert Decimal(creado.json()["lat"]) == Decimal("-33.081")
-    assert creado.json()["estado_ficha"] == "completa"
 
 
 async def test_preventista_ve_solo_sus_clientes_y_los_sin_asignar(

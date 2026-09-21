@@ -1,5 +1,4 @@
 import uuid
-from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
@@ -185,26 +184,6 @@ async def test_salida_del_dia_y_cierre_del_camion(
         f"/pedidos/{pedido['id']}/cajones/lote", json=LOTE, headers=como_preventista
     )
     assert tarde.status_code == 422
-
-    # GPS: solo el repartidor de la salida; administración lo ve en el recorrido.
-    ubicacion = f"/salidas/{salida.json()['id']}/ubicacion"
-    assert (
-        await cliente.post(ubicacion, json={"lat": "-33.08", "lng": "-68.47"}, headers=como_admin)
-    ).status_code == 403
-    assert (
-        await cliente.post(
-            ubicacion, json={"lat": "-33.08", "lng": "-68.47"}, headers=como_preventista
-        )
-    ).status_code == 204
-    await cliente.post(
-        ubicacion,
-        json={"lat": "-33.09", "lng": "-68.48", "velocidad": "42.5"},
-        headers=como_preventista,
-    )
-    recorrido = await cliente.get(f"/salidas/{salida.json()['id']}/recorrido", headers=como_admin)
-    assert [Decimal(p["lat"]) for p in recorrido.json()] == [Decimal("-33.08"), Decimal("-33.09")]
-    flota = await cliente.get("/salidas", params={"fecha": HOY.isoformat()}, headers=como_admin)
-    assert Decimal(flota.json()[0]["ultima_posicion"]["lng"]) == Decimal("-68.48")
 
     # Otro preventista no ve esta salida.
     otro = await crear_usuario(sesion, sucursal, preventista.rol, "Maxi")

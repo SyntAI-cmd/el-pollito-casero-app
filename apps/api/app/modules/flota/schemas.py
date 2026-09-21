@@ -1,6 +1,5 @@
 import uuid
 from datetime import date, datetime, time
-from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,22 +43,6 @@ class CierreEntrada(BaseModel):
     motivo: str | None = Field(default=None, max_length=200)
 
 
-class PosicionEntrada(BaseModel):
-    lat: Decimal = Field(ge=-90, le=90, decimal_places=6)
-    lng: Decimal = Field(ge=-180, le=180, decimal_places=6)
-    velocidad: Decimal | None = Field(default=None, ge=0, decimal_places=2)
-    registrado_en: datetime | None = None
-
-
-class PosicionSalida(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    lat: Decimal
-    lng: Decimal
-    velocidad: Decimal | None
-    registrado_en: datetime
-
-
 class FaltanteSalida(BaseModel):
     pedido_id: uuid.UUID
     numero: str
@@ -83,5 +66,4 @@ class SalidaSalida(BaseModel):
     motivo_cierre: str | None
     pedidos: int
     pedidos_entregados: int
-    ultima_posicion: PosicionSalida | None
     faltantes: list[FaltanteSalida]

@@ -1,6 +1,5 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { CerrarSesion } from '@/components/CerrarSesion';
 import { Boton } from '@/components/ui/Boton';
@@ -10,8 +9,7 @@ import { GrillaAccesos, MetricaHero, Tarjeta } from '@/components/ui/Tarjeta';
 import { TarjetaPedido, kilosPesados } from '@/components/ui/TarjetaPedido';
 import { Texto } from '@/components/ui/Texto';
 import { usePedidosDelDia, useSalidas } from '@/lib/consultas';
-import { cajones, fechaLarga, horaCorta, hoyIso, kilos } from '@/lib/formato';
-import { useGps } from '@/lib/ubicacion';
+import { cajones, fechaLarga, hoyIso, kilos } from '@/lib/formato';
 import { useSesion } from '@/stores/sesion';
 
 function sumarKilos(valores: string[]): string {
@@ -25,7 +23,6 @@ export default function InicioReparto() {
   const hoy = hoyIso();
   const pedidos = usePedidosDelDia(hoy);
   const salidas = useSalidas(hoy);
-  const gps = useGps();
 
   const lista = (pedidos.data ?? []).filter((p) => p.estado !== 'cancelado');
   const pendientes = lista.filter((p) => p.estado !== 'entregado');
@@ -33,7 +30,6 @@ export default function InicioReparto() {
   const miSalida = (salidas.data ?? []).find(
     (s) => s.preventista_id === usuario?.id || s.segundo_preventista_id === usuario?.id,
   );
-  const compartiendo = miSalida != null && gps.salidaId === miSalida.id;
 
   return (
     <>
@@ -62,34 +58,6 @@ export default function InicioReparto() {
               />
             ) : null
           }>
-          {miSalida ? (
-            <View className="mt-4 flex-row items-center gap-3">
-              <Pressable
-                accessibilityRole="switch"
-                accessibilityState={{ checked: compartiendo }}
-                accessibilityLabel="Compartir ubicación del camión"
-                onPress={() => (compartiendo ? gps.detener() : gps.compartir(miSalida.id))}
-                className={`h-12 flex-row items-center gap-2 rounded-pill px-4 ${compartiendo ? 'bg-success' : 'bg-primary active:bg-primary-press'}`}>
-                <MaterialCommunityIcons
-                  name={compartiendo ? 'crosshairs-gps' : 'crosshairs'}
-                  size={20}
-                  color="#FFFFFF"
-                />
-                <Texto variante="label-md" tono="claro">
-                  {compartiendo ? 'GPS activo' : 'Compartir ubicación'}
-                </Texto>
-              </Pressable>
-              {gps.error ? (
-                <Texto variante="body-md" tono="claro-suave">
-                  {gps.error}
-                </Texto>
-              ) : compartiendo && gps.ultimaEnvio ? (
-                <Texto variante="body-md" tono="claro-suave">
-                  Último envío {horaCorta(new Date(gps.ultimaEnvio).toISOString())}
-                </Texto>
-              ) : null}
-            </View>
-          ) : null}
         </MetricaHero>
 
         <GrillaAccesos

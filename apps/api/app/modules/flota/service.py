@@ -17,11 +17,9 @@ from app.domain.pedidos import (
 from app.modules.auditoria.service import registrar
 from app.modules.auth import service as auth
 from app.modules.flota import repository
-from app.modules.flota.models import Salida, SalidaTrack, Vehiculo
+from app.modules.flota.models import Salida, Vehiculo
 from app.modules.flota.schemas import (
     FaltanteSalida,
-    PosicionEntrada,
-    PosicionSalida,
     SalidaEntrada,
     SalidaSalida,
     VehiculoCambios,
@@ -113,7 +111,6 @@ async def _a_salida(
             )
             for f in faltantes_para_cerrar(await pedidos.para_cargar(sesion, del_dia))
         ]
-    posicion = await repository.ultima_posicion(sesion, salida.id)
     return SalidaSalida(
         id=salida.id,
         sucursal_id=salida.sucursal_id,
@@ -132,7 +129,6 @@ async def _a_salida(
         motivo_cierre=salida.motivo_cierre,
         pedidos=len(del_dia),
         pedidos_entregados=entregados,
-        ultima_posicion=PosicionSalida.model_validate(posicion) if posicion else None,
         faltantes=faltantes,
     )
 
@@ -236,40 +232,3 @@ async def cerrar_camion(
     await pedidos.publicar_despacho(del_dia)
     await difusor.publicar(salida.sucursal_id, "salida.cerrada", {"salida_id": str(salida.id)})
     return await _a_salida(sesion, salida)
-
-
-async def registrar_posicion(
-    sesion: AsyncSession, quien: Identidad, salida_id: uuid.UUID, datos: PosicionEntrada
-) -> None:
-    salida = await _obtener(sesion, quien, salida_id)
-    if quien.rol is not Rol.PREVENTISTA:
-        raise SinPermiso("La posición la manda el celular del repartidor")
-    sesion.add(
-        SalidaTrack(
-            salida_id=salida.id,
-            lat=datos.lat,
-            lng=datos.lng,
-            velocidad=datos.velocidad,
-            registrado_en=datos.registrado_en or ahora(),
-        )
-    )
-    await sesion.commit()
-    await difusor.publicar(
-        salida.sucursal_id,
-        "flota.posicion",
-        {
-            "salida_id": str(salida.id),
-            "vehiculo_id": str(salida.vehiculo_id),
-            "lat": str(datos.lat),
-            "lng": str(datos.lng),
-            "velocidad": str(datos.velocidad) if datos.velocidad is not None else None,
-        },
-        roles=frozenset({Rol.ADMIN}),
-    )
-
-
-async def recorrido(
-    sesion: AsyncSession, quien: Identidad, salida_id: uuid.UUID
-) -> list[PosicionSalida]:
-    salida = await _obtener(sesion, quien, salida_id)
-    return [PosicionSalida.model_validate(p) for p in await repository.recorrido(sesion, salida.id)]

@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Image, Linking, Pressable, View } from 'react-native';
 
-import { Mapa } from '@/components/Mapa';
 import { Boton } from '@/components/ui/Boton';
 import { Campo } from '@/components/ui/Campo';
 import { Badge, Stepper } from '@/components/ui/Estado';
@@ -146,15 +145,6 @@ export function DetallePedido({ id, onCerrar }: { id: string; onCerrar?: () => v
           </Texto>
         ) : null}
       </Tarjeta>
-
-      {p.cliente_lat && p.cliente_lng ? (
-        <Mapa
-          puntos={[
-            { lat: Number(p.cliente_lat), lng: Number(p.cliente_lng), titulo: p.cliente_nombre },
-          ]}
-          alto={200}
-        />
-      ) : null}
 
       <Tarjeta>
         <View className="flex-row items-center justify-between">

@@ -8,8 +8,6 @@ from app.core.dependencias import Equipo, Operativo, SoloAdmin
 from app.modules.flota import service
 from app.modules.flota.schemas import (
     CierreEntrada,
-    PosicionEntrada,
-    PosicionSalida,
     SalidaEntrada,
     SalidaSalida,
     VehiculoCambios,
@@ -66,15 +64,3 @@ async def cerrar_camion(
 ) -> SalidaSalida:
     """Cerrar camión: avisa si falta pesar o cargar y pide motivo para salir igual."""
     return await service.cerrar_camion(sesion, quien, salida_id, datos.motivo)
-
-
-@router.post("/salidas/{salida_id}/ubicacion", status_code=status.HTTP_204_NO_CONTENT)
-async def registrar_posicion(
-    salida_id: uuid.UUID, datos: PosicionEntrada, sesion: Sesion, quien: Operativo
-) -> None:
-    await service.registrar_posicion(sesion, quien, salida_id, datos)
-
-
-@router.get("/salidas/{salida_id}/recorrido", response_model=list[PosicionSalida])
-async def recorrido(salida_id: uuid.UUID, sesion: Sesion, quien: Operativo) -> list[PosicionSalida]:
-    return await service.recorrido(sesion, quien, salida_id)

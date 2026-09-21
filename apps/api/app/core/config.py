@@ -26,9 +26,6 @@ class Settings(BaseSettings):
     # "arq" las encola en Redis para el worker.
     worker_modo: str = "inline"
 
-    # Google Maps Platform, solo del lado del servidor (Geocoding API). Vacío = sin geocoding.
-    google_maps_api_key: str = ""
-
     # Datos fiscales impresos en el remito.
     fiscal_razon_social: str = "EL POLLITO CASERO"
     fiscal_lema: str = "VENTA POR MAYOR Y MENOR"

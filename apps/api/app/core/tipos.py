@@ -11,7 +11,6 @@ from sqlalchemy.types import TypeDecorator
 
 IMPORTE = Numeric(12, 2)
 KILOS = Numeric(9, 3)
-COORDENADA = Numeric(9, 6)
 
 # JSONB en Postgres; JSON plano en SQLite (solo tests locales sin Docker).
 JSON_FLEX = JSON().with_variant(JSONB(), "postgresql")

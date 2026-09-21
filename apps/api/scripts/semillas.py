@@ -226,8 +226,6 @@ async def sembrar_prueba(fecha: date | None = None) -> None:
                     localidad="San Martín",
                     preventista_id=preventistas[n % 2].id,
                     cobrador_id=cobrador.id,
-                    lat=Decimal("-33.081") + Decimal(n) / 1000,
-                    lng=Decimal("-68.469") - Decimal(n) / 1000,
                 )
                 sesion.add(ficha)
             clientes.append(ficha)

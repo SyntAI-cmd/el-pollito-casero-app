@@ -215,8 +215,6 @@ async def a_salida(
         cliente_nombre=cliente.nombre_comercial,
         cliente_direccion=cliente.direccion,
         cliente_telefono=cliente.telefono,
-        cliente_lat=cliente.lat,
-        cliente_lng=cliente.lng,
         estado=pedido.estado,
         turno=pedido.turno,
         fecha_reparto=pedido.fecha_reparto,

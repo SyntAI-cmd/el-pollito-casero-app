@@ -18,8 +18,6 @@ class ClienteEntrada(BaseModel):
     telefono: str | None = Field(default=None, max_length=25)
     direccion: str = Field(default="", max_length=250)
     localidad: str = Field(default="", max_length=80)
-    lat: Decimal | None = None
-    lng: Decimal | None = None
     zona_id: uuid.UUID | None = None
     lista: Lista = Lista.MAYORISTA
     turno: Turno = Turno.MANANA
@@ -37,8 +35,6 @@ class ClienteCambios(BaseModel):
     telefono: str | None = Field(default=None, max_length=25)
     direccion: str | None = Field(default=None, max_length=250)
     localidad: str | None = Field(default=None, max_length=80)
-    lat: Decimal | None = None
-    lng: Decimal | None = None
     zona_id: uuid.UUID | None = None
     lista: Lista | None = None
     turno: Turno | None = None
@@ -63,8 +59,6 @@ class ClienteSalida(BaseModel):
     telefono: str | None
     direccion: str
     localidad: str
-    lat: Decimal | None
-    lng: Decimal | None
     zona_id: uuid.UUID | None
     lista: Lista
     turno: Turno

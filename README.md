@@ -1,6 +1,6 @@
 # Pollito Casero
 
-Sistema de gestión de **El Pollito Casero** (San Martín, Mendoza): pedidos mayoristas, pesada con tara, carga de camiones, reparto con GPS, cobros y cuentas corrientes. Reemplaza a la PWA anterior y al ERP GC/Atuq.
+Sistema de gestión de **El Pollito Casero** (San Martín, Mendoza): pedidos mayoristas, pesada con tara, carga de camiones, reparto por zonas, cobros y cuentas corrientes. Reemplaza a la PWA anterior y al ERP GC/Atuq.
 
 Una sola app (Android + escritorio en el navegador) para cuatro roles: `admin`, `preventista`, `cobrador` y, más adelante, `cliente`. La especificación completa está en [docs/PROMPT.md](docs/PROMPT.md); las pantallas de referencia en [docs/diseno](docs/diseno).
 
@@ -62,8 +62,6 @@ En un celular Android físico la app no llega a `localhost`: copiá `apps/mobile
 
 | Variable | Dónde | Para qué |
 |---|---|---|
-| `GOOGLE_MAPS_API_KEY` | `apps/api/.env` (servidor) | Geocoding API: dirección → coordenadas al dar de alta o cambiar la dirección de un cliente. Restringir la clave **por API** (solo Geocoding; Routes cuando se implemente). Sin clave, el cliente queda "a revisar" y se ubica a mano. |
-| `GOOGLE_MAPS_ANDROID_KEY` | entorno al hacer el build con EAS | Maps SDK for Android para el mapa nativo. Restringir **por aplicación** (package `ar.com.pollitocasero.app` + SHA-1 del build). Expo Go no la necesita. |
 | `JWT_SECRET`, `DATABASE_URL`, `REDIS_URL`, `URL_PUBLICA`, `WORKER_MODO=arq` | Railway | Producción (ver "Qué falta"). |
 
 ## Verificación
@@ -86,7 +84,7 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 | 1 | `app/domain/` con tests: precios, tara y neto, aplicación de pagos, saldos, numeración de remitos | **Hecha** |
 | 2 | Esquema Alembic + módulos `auth`, `sucursales`, `catalogo`, `clientes`. Cliente TS generado | **Hecha** (ver abajo) |
 | 3 | Módulos `pedidos`, `pesada`, `flota`. WebSockets. Semillas | **Hecha** (ver abajo) |
-| 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, Google Maps, push | **Hecha** (ver abajo) |
+| 4 | App del repartidor: pantallas de campo, offline con SQLite, cámara, push | **Hecha** (ver abajo) |
 | 5 | Módulo `cobros` + rol cobrador + PDFs y Excel en el worker | **Hecha** (ver abajo) |
 | 6 | Administración en escritorio | **Hecha** (ver abajo) |
 
@@ -99,16 +97,15 @@ Lo mismo corre en GitHub Actions ([.github/workflows/ci.yml](.github/workflows/c
 - Esquema completo (23 tablas) en `apps/api/alembic/versions/`, generado desde los modelos. UUID en todas las claves, `NUMERIC(12,2)` para importes, `NUMERIC(9,3)` para kilos, `TIMESTAMPTZ`, JSONB para campos flexibles, `sucursal_id` en clientes, pedidos, cajones, cobros y cierres. El correlativo de remitos vive en la tabla `contadores` y se toma con `FOR UPDATE` dentro de la transacción del pedido.
 - Módulos `auth` (login, refresh con rotación, salir, `/auth/yo`, alta y baja de usuarios), `sucursales` (+ zonas), `catalogo` (productos y listas de precio por lista/turno/zona) y `clientes` (ficha, precios propios, precios resueltos, envases). Cada módulo: `router → service → repository → models`; el filtrado por rol se hace en el service: un preventista solo ve sus clientes y los sin asignar, un cobrador solo sus cuentas.
 - Toda operación deja fila en `audit_log` dentro de la misma transacción.
-- Geocoding detrás de `app/integrations/maps.py` (proveedor nulo hasta la Fase 4).
 - Tests de integración (`apps/api/tests/`) sobre base real: SQLite en un archivo temporal si no hay Docker, Postgres si `DATABASE_URL_TEST` está definida (así corre CI, que además aplica las migraciones y verifica con `alembic check` que el esquema no se desvió de los modelos).
 
-Migraciones verificadas contra Postgres 16 real (`alembic upgrade head` + `alembic check`) y los 100 tests corren en verde tanto en SQLite como en Postgres (`DATABASE_URL_TEST`). Si Docker Desktop no arranca con "The file cannot be accessed by the system" sobre un `.sock`, renombrar las carpetas `%LOCALAPPDATA%\Docker\run` y `%LOCALAPPDATA%\docker-secrets-engine` y relanzarlo.
+Migraciones verificadas contra Postgres 16 real (`alembic upgrade head` + `alembic check`) y los 94 tests corren en verde tanto en SQLite como en Postgres (`DATABASE_URL_TEST`). Si Docker Desktop no arranca con "The file cannot be accessed by the system" sobre un `.sock`, renombrar las carpetas `%LOCALAPPDATA%\Docker\run` y `%LOCALAPPDATA%\docker-secrets-engine` y relanzarlo.
 
 ### Fase 3 — pedidos, pesada, flota y tiempo real
 
 - **Pedidos**: alta con precios resueltos en el servidor (precio tipeado > propio > lista por turno y zona; sin nada, el renglón queda "sin precio"), número de remito correlativo tomado de `contadores` con `FOR UPDATE`, estados con transiciones validadas, cancelación con motivo, corrección de precios por renglón (con opción de guardarlo como propio), borrado que deja la foto del pedido en `audit_log` y devuelve lo cobrado como saldo a favor, historial en `pedido_eventos`, y `GET /pedidos/dia` (la nota del día: totales por producto y pedidos por preventista).
 - **Pesada**: `POST /pedidos/{id}/cajones` (un cajón, id generada en el celular) y `/cajones/lote` (N cajas con bruto total; ids derivadas del `lote_id` con uuid5, así el reintento no duplica). La tara sale de la sucursal (`PATCH /sucursales/{id}` con `tara`). Cada pesada recalcula importes y totales con el precio del cliente; si el pedido ya estaba pagado, la diferencia va al saldo a favor. Anular con motivo, cargar/descargar al camión.
-- **Flota**: vehículos, salida del día (`PUT /salidas`: vehículo + hasta dos preventistas, un preventista en un solo vehículo por día), **cerrar camión** (avisa qué falta pesar o cargar por número de remito y pide motivo para salir igual; los pedidos pasan a `en_camino`), GPS (`POST /salidas/{id}/ubicacion`, solo el repartidor de esa salida), recorrido (últimos 600 puntos) y `GET /salidas?fecha=` como "flota en vivo" con última posición.
+- **Flota**: vehículos, salida del día (`PUT /salidas`: vehículo + hasta dos preventistas, un preventista en un solo vehículo por día), **cerrar camión** (avisa qué falta pesar o cargar por número de remito y pide motivo para salir igual; los pedidos pasan a `en_camino`) y `GET /salidas?fecha=` con las salidas del día.
 - **WebSocket** `/ws?token=…`: un canal por sucursal, cada evento con los roles que pueden verlo (`pedido.creado`, `pedido.estado`, `pedido.actualizado`, `pedido.eliminado`, `salida.cerrada`, `flota.posicion`). Difusor en memoria; para varios workers se cambia por Redis pub/sub sin tocar los módulos.
 - **Semillas**: `scripts/semillas.py` (base) y `--prueba` / `--borrar-prueba` (datos de prueba, idempotentes).
 - 78 tests (dominio + integración), `mypy --strict` y `ruff` en verde.
@@ -116,16 +113,15 @@ Migraciones verificadas contra Postgres 16 real (`alembic upgrade head` + `alemb
 ### Fase 4 — app del repartidor
 
 - **Sesión**: login con JWT, refresh automático y rotación (un solo refresh en vuelo), persistida en `expo-secure-store` (localStorage en web). Un grupo de rutas por rol: `(reparto)`, `(cobrador)`, `(admin)`; `index` redirige según el rol del token.
-- **Pantallas de campo** (`apps/mobile/src/app/(reparto)/`): Inicio de reparto (métrica del día, salida y GPS, accesos rápidos, entregas prioritarias) · Mis entregas (order cards con stepper, llamar y navegar) · Entrega en curso (mapa, cliente, total a cobrar, envases devueltos, marcar entregado) · Balanza (elegir pedido → producto → bruto; neto en grande; por cajón o por lote; anular con motivo) · Carga del camión (armar salida, marcar cajones, cerrar camión con motivo si hay faltantes) · Cargar pedido (búsqueda de cliente, cajas o kilos, precio editable en la fila con opción de guardarlo como propio).
+- **Pantallas de campo** (`apps/mobile/src/app/(reparto)/`): Inicio de reparto (métrica del día, salida, accesos rápidos, entregas prioritarias) · Mis entregas (order cards con stepper, llamar y navegar) · Entrega en curso (cliente y domicilio, total a cobrar, envases devueltos, marcar entregado) · Balanza (elegir pedido → producto → bruto; neto en grande; por cajón o por lote; anular con motivo) · Carga del camión (armar salida, marcar cajones, cerrar camión con motivo si hay faltantes) · Cargar pedido (búsqueda de cliente, cajas o kilos, precio editable en la fila con opción de guardarlo como propio).
 - **Offline**: `expo-sqlite` como copia local de lo que la pantalla muestra (`lib/almacen.ts`; localStorage en web) y **cola de mutaciones** (`lib/cola.ts`) con id generada en el celular, reintento en orden que se frena en el primer fallo de red, y rechazos del servidor que no se reintentan sino que se muestran con su mensaje. La pesada se escribe local y se ve al instante (`lib/pesadaLocal.ts`); indicador visible de operaciones pendientes en todas las pantallas.
 - **Tiempo real**: WebSocket a `/ws` con reconexión; los eventos invalidan las consultas.
-- **GPS**: `expo-location` cada 15 s o 25 m mientras la salida está activa (primer plano). **Mapa**: `react-native-maps` con Google en Android; en web un embed de Google Maps con enlace.
 - **Push**: `expo-notifications` registra el token en `POST /auth/push-token`; el servidor avisa al preventista cuando administración le asigna un pedido (`integrations/push.py`, Expo Push).
 - **Cámara**: `lib/foto.ts` saca la foto y la reduce a ≤ 3,5 MB (se usa en el cobro, Fase 5).
 - Sistema de diseño en componentes: `Boton`, `Tarjeta`/`MetricaHero`/`GrillaAccesos`, `Badge`/`Stepper`, `TarjetaPedido`, `Campo`, `NavFlotante` con FAB. Nunca un estado solo con color; área táctil mínima 48 px; numerales tabulares.
 - Verificado en el navegador contra la API con datos de prueba: login, inicio, balanza (el cajón llegó al servidor con bruto 21,7 → neto 20 y el total se recalculó).
 
-**Pendiente / a verificar**: en Android físico (Expo Go) no se probó desde esta máquina; la key de Google Maps para builds de producción va en `app.json → android.config.googleMaps.apiKey` (Expo Go usa la suya); GPS en segundo plano requiere build de desarrollo con permiso de background. El cobro con foto se construye en la Fase 5 junto con su API.
+**Pendiente / a verificar**: el cobro con foto se construye en la Fase 5 junto con su API.
 
 ### Fase 5 — cobros, cobrador y documentos
 
@@ -138,24 +134,22 @@ Migraciones verificadas contra Postgres 16 real (`alembic upgrade head` + `alemb
 
 ### Fase 6 — administración en escritorio
 
-- Grupo `(admin)` con barra lateral oscura en ≥ 1024 px (tira horizontal en pantallas chicas), contenido a 1280 px máximo. Pantallas: **Nota del día** (noticias del equipo, totales por producto, pedidos por preventista, accesos a pesar/cargar/imprimir), **Pedidos** (lista densa con columnas fijas o tarjetas, filtros por fecha/turno/estado/preventista, y **vista partida 7/5** con la ficha del pedido: mapa, renglones con precio editable, comprobantes, cambio de estado, cancelación con motivo, borrado), **Cargar pedido** (formulario compartido con el repartidor + preventista y segundo preventista), **Clientes** (lista, alta, ficha editable, precios propios, envases, ajuste manual y extracto), **Listas de precios** (producto × lista por turno y zona; Ctrl+Enter guarda), **Balanza** y **Carga** (las pantallas de piso), **Flota en vivo** (última posición y recorrido por camión, armar salida, cerrar camión), **Rendición** (una caja por persona con cierre y comprobantes del día), **Imprimir** (genera y descarga/comparte/imprime los documentos), **Equipo** (usuarios y vehículos), **Sucursales** (tara y zonas).
+- Grupo `(admin)` con barra lateral oscura en ≥ 1024 px (tira horizontal en pantallas chicas), contenido a 1280 px máximo. Pantallas: **Nota del día** (noticias del equipo, totales por producto, pedidos por preventista, accesos a pesar/cargar/imprimir), **Pedidos** (lista densa con columnas fijas o tarjetas, filtros por fecha/turno/estado/preventista, y **vista partida 7/5** con la ficha del pedido: renglones con precio editable, comprobantes, cambio de estado, cancelación con motivo, borrado), **Cargar pedido** (formulario compartido con el repartidor + preventista y segundo preventista), **Clientes** (lista, alta, ficha editable, precios propios, envases, ajuste manual y extracto), **Listas de precios** (producto × lista por turno y zona; Ctrl+Enter guarda), **Balanza** y **Carga** (las pantallas de piso), **Salidas** (armar salida, faltantes, cerrar camión), **Rendición** (una caja por persona con cierre y comprobantes del día), **Imprimir** (genera y descarga/comparte/imprime los documentos), **Equipo** (usuarios y vehículos), **Sucursales** (tara y zonas).
 - API: módulo `comunicacion` (`/noticias`, `/mensajes`, con eventos por WebSocket) y `GET /caja/rendicion`.
 - Verificado en el navegador como admin con datos de prueba: nota del día y vista partida de pedidos. 94 tests en la API; `tsc`, `eslint` y `jest` en verde en la app.
 
 ### Después de la Fase 6 — hecho
 
 - Logo real en la app (ícono, splash, login) y en el remito; remito igual al talonario, en A4 (4 por hoja) o 10 × 15.
-- Geocoding con Google (`GeocodificadorGoogle`, acotado a Mendoza, con tests) activado por `GOOGLE_MAPS_API_KEY`; clave de Android por `GOOGLE_MAPS_ANDROID_KEY` en `app.config.js`.
+- **Sin mapas ni GPS (decisión de MVP, 21/09/2026)**: se sacaron geocoding, coordenadas de clientes, `react-native-maps`, `expo-location` y la posición de los camiones (migración `dc13e1927526`). El reparto se organiza por **zona y domicilio**; «Cómo llegar» del cobrador abre la app de mapas del celular con la dirección escrita. Si algún día hace falta, está en la historia de git (commit "Logo y remito del talonario, geocoding con Google…").
 - Semillas `--equipo` con el equipo real; catálogo con "Suprema de muslo" y "Otro producto" (sin lista: precio propio por pedido).
 - Postgres real validado con Docker; `docs/referencia` (datos del sistema viejo con teléfonos y CUITs) fuera del repo y de su historia.
 
 ### Qué falta
 
-- Probar en Android físico (Expo Go) y hacer el build con EAS (`eas build -p android`) con `GOOGLE_MAPS_ANDROID_KEY`.
+- Hacer el build con EAS (`eas build -p android`).
 - Deploy: Railway con Postgres + Redis + worker (`arq`) y `WORKER_MODO=arq`; storage S3-compatible en lugar del disco local (`integrations/storage.py`).
 - Rol `cliente` (catálogo, sus pedidos, seguimiento, cuenta corriente y envases).
-- Optimización de paradas con Routes API (`integrations/maps.py` tiene la interfaz; falta la implementación).
-- GPS en segundo plano (build de desarrollo con permiso de background).
 - Chat interno en la app (la API ya lo tiene).
 
 ### Fase 0 — qué quedó hecho

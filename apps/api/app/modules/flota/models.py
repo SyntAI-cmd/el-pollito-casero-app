@@ -1,12 +1,11 @@
 import uuid
 from datetime import date, datetime, time
-from decimal import Decimal
 
 from sqlalchemy import Date, ForeignKey, String, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, ConFechas, ConId
-from app.core.tipos import COORDENADA, FechaHora
+from app.core.tipos import FechaHora
 
 
 class Vehiculo(ConId, ConFechas, Base):
@@ -33,17 +32,3 @@ class Salida(ConId, ConFechas, Base):
     segundo_preventista_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("usuarios.id"))
     cerrada_en: Mapped[datetime | None] = mapped_column(FechaHora)
     motivo_cierre: Mapped[str | None] = mapped_column(String(200))
-
-
-class SalidaTrack(ConId, Base):
-    """Posición del camión: cada 15 s o cada 25 m de desplazamiento."""
-
-    __tablename__ = "salida_track"
-
-    salida_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("salidas.id", ondelete="CASCADE"), index=True
-    )
-    lat: Mapped[Decimal] = mapped_column(COORDENADA)
-    lng: Mapped[Decimal] = mapped_column(COORDENADA)
-    velocidad: Mapped[Decimal | None] = mapped_column(COORDENADA)
-    registrado_en: Mapped[datetime] = mapped_column(FechaHora, index=True)

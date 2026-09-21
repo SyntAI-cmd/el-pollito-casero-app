@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.flota.models import Salida, SalidaTrack, Vehiculo
+from app.modules.flota.models import Salida, Vehiculo
 
 
 async def listar_vehiculos(
@@ -60,25 +60,3 @@ async def salida_de_preventista(
             ),
         )
     )
-
-
-async def ultima_posicion(sesion: AsyncSession, salida_id: uuid.UUID) -> SalidaTrack | None:
-    consulta = (
-        select(SalidaTrack)
-        .where(SalidaTrack.salida_id == salida_id)
-        .order_by(SalidaTrack.registrado_en.desc())
-        .limit(1)
-    )
-    return await sesion.scalar(consulta)
-
-
-async def recorrido(
-    sesion: AsyncSession, salida_id: uuid.UUID, limite: int = 600
-) -> Sequence[SalidaTrack]:
-    consulta = (
-        select(SalidaTrack)
-        .where(SalidaTrack.salida_id == salida_id)
-        .order_by(SalidaTrack.registrado_en.desc())
-        .limit(limite)
-    )
-    return list(reversed((await sesion.scalars(consulta)).all()))

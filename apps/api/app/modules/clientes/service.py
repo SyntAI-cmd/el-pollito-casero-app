@@ -11,7 +11,6 @@ from app.domain.precios import resolver_precio, validar_precio
 from app.domain.saldos import MovimientoEnvases as EnvasesDominio
 from app.domain.saldos import saldo_envases
 from app.domain.telefonos import normalizar_telefono
-from app.integrations.maps import geocodificador
 from app.modules.auditoria.service import registrar
 from app.modules.catalogo import service as catalogo
 from app.modules.clientes import repository
@@ -78,7 +77,7 @@ async def listar(
 def _estado_ficha(cliente: Cliente) -> EstadoFicha:
     if not cliente.cuit:
         return EstadoFicha.SIN_CUIT
-    if not cliente.direccion or cliente.lat is None:
+    if not cliente.direccion or not cliente.localidad:
         return EstadoFicha.REVISAR
     return EstadoFicha.COMPLETA
 
@@ -97,14 +96,6 @@ async def _validar_telefono(
     return normalizado
 
 
-async def _geocodificar_si_falta(cliente: Cliente) -> None:
-    if cliente.lat is not None or not cliente.direccion:
-        return
-    coordenadas = await geocodificador().geocodificar(cliente.direccion, cliente.localidad)
-    if coordenadas is not None:
-        cliente.lat, cliente.lng = coordenadas.lat, coordenadas.lng
-
-
 async def crear(sesion: AsyncSession, quien: Identidad, datos: ClienteEntrada) -> Cliente:
     if quien.rol not in (Rol.ADMIN, Rol.PREVENTISTA):
         raise SinPermiso("Solo administración y preventistas cargan clientes")
@@ -121,8 +112,6 @@ async def crear(sesion: AsyncSession, quien: Identidad, datos: ClienteEntrada) -
         telefono=await _validar_telefono(sesion, datos.telefono, None),
         direccion=datos.direccion.strip(),
         localidad=datos.localidad.strip(),
-        lat=datos.lat,
-        lng=datos.lng,
         zona_id=datos.zona_id,
         lista=datos.lista,
         turno=datos.turno,
@@ -133,7 +122,6 @@ async def crear(sesion: AsyncSession, quien: Identidad, datos: ClienteEntrada) -
         credito_habilitado=datos.credito_habilitado,
         observaciones=datos.observaciones.strip(),
     )
-    await _geocodificar_si_falta(cliente)
     cliente.estado_ficha = _estado_ficha(cliente)
     sesion.add(cliente)
     await sesion.flush()
@@ -159,11 +147,8 @@ async def modificar(
         otro = await repository.por_codigo(sesion, cliente.sucursal_id, datos["codigo"])
         if otro is not None and otro.id != cliente.id:
             raise Conflicto(f"Ya existe un cliente con código {datos['codigo']}")
-    if "direccion" in datos and datos["direccion"] != cliente.direccion and "lat" not in datos:
-        cliente.lat = cliente.lng = None  # cambió la dirección: se vuelve a geocodificar
     for campo, valor in datos.items():
         setattr(cliente, campo, valor.strip() if isinstance(valor, str) else valor)
-    await _geocodificar_si_falta(cliente)
     if "estado_ficha" not in datos:
         cliente.estado_ficha = _estado_ficha(cliente)
     registrar(sesion, quien, "cliente.modificar", "cliente", cliente.id, {"campos": sorted(datos)})

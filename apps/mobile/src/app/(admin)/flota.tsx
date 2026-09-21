@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Linking, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Chips, Seccion, SelectorFecha } from '@/components/admin/controles';
-import { Mapa } from '@/components/Mapa';
 import { Boton } from '@/components/ui/Boton';
 import { Campo } from '@/components/ui/Campo';
 import { Badge } from '@/components/ui/Estado';
@@ -12,22 +11,11 @@ import { Tarjeta } from '@/components/ui/Tarjeta';
 import { Texto } from '@/components/ui/Texto';
 import { api, desenvolver, mensajeDeError, type Salida } from '@/lib/api';
 import { useSalidas, useUsuarios } from '@/lib/consultas';
-import { horaCorta, hoyIso } from '@/lib/formato';
+import { hoyIso } from '@/lib/formato';
 
 function TarjetaSalida({ salida }: { salida: Salida }) {
   const queryClient = useQueryClient();
   const [motivo, setMotivo] = useState('');
-  const recorrido = useQuery({
-    queryKey: ['recorrido', salida.id],
-    enabled: !!salida.ultima_posicion,
-    refetchInterval: 30_000,
-    queryFn: async () =>
-      desenvolver(
-        await api.GET('/salidas/{salida_id}/recorrido', {
-          params: { path: { salida_id: salida.id } },
-        }),
-      ),
-  });
   const cerrar = useMutation({
     mutationFn: async () =>
       desenvolver(
@@ -41,7 +29,6 @@ function TarjetaSalida({ salida }: { salida: Salida }) {
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
     },
   });
-  const posicion = salida.ultima_posicion;
   return (
     <Tarjeta elevada>
       <View className="flex-row items-start justify-between">
@@ -61,46 +48,6 @@ function TarjetaSalida({ salida }: { salida: Salida }) {
           texto={salida.cerrada_en ? `Salió ${salida.hora_salida?.slice(0, 5) ?? ''}` : 'Sin salir'}
         />
       </View>
-      {posicion ? (
-        <View className="mt-3 gap-2">
-          <Mapa
-            puntos={[
-              {
-                lat: Number(posicion.lat),
-                lng: Number(posicion.lng),
-                titulo: salida.vehiculo_nombre,
-                tipo: 'camion',
-              },
-            ]}
-            recorrido={(recorrido.data ?? []).map((p) => ({
-              lat: Number(p.lat),
-              lng: Number(p.lng),
-            }))}
-            alto={220}
-          />
-          <View className="flex-row items-center justify-between">
-            <Texto variante="body-md" tono="suave">
-              Última posición {horaCorta(posicion.registrado_en)}
-              {posicion.velocidad ? ` · ${Number(posicion.velocidad).toFixed(0)} km/h` : ''}
-            </Texto>
-            <Boton
-              texto="Abrir en Google Maps"
-              variante="ghost"
-              compacto
-              icono="open-in-new"
-              onPress={() =>
-                Linking.openURL(
-                  `https://www.google.com/maps/search/?api=1&query=${posicion.lat},${posicion.lng}`,
-                )
-              }
-            />
-          </View>
-        </View>
-      ) : (
-        <Texto variante="body-md" tono="suave" className="mt-2">
-          Sin posición todavía: el repartidor activa «Compartir ubicación» en su inicio de reparto.
-        </Texto>
-      )}
       {!salida.cerrada_en ? (
         <View className="mt-3 gap-2">
           {salida.faltantes.length ? (
@@ -135,7 +82,7 @@ function TarjetaSalida({ salida }: { salida: Salida }) {
   );
 }
 
-export default function FlotaEnVivo() {
+export default function Flota() {
   const queryClient = useQueryClient();
   const [fecha, setFecha] = useState(hoyIso());
   const [vehiculo, setVehiculo] = useState<string | null>(null);
@@ -167,22 +114,10 @@ export default function FlotaEnVivo() {
     },
   });
   const preventistas = (usuarios.data ?? []).filter((u) => u.rol === 'preventista' && u.activo);
-  const todos = (salidas.data ?? []).filter((s) => s.ultima_posicion);
 
   return (
     <Pantalla sinNav refrescando={salidas.isFetching} onRefrescar={() => salidas.refetch()}>
       <SelectorFecha valor={fecha} onCambio={setFecha} />
-      {todos.length > 1 ? (
-        <Mapa
-          puntos={todos.map((s) => ({
-            lat: Number(s.ultima_posicion!.lat),
-            lng: Number(s.ultima_posicion!.lng),
-            titulo: `${s.vehiculo_nombre} · ${s.preventista_nombre}`,
-            tipo: 'camion' as const,
-          }))}
-          alto={280}
-        />
-      ) : null}
       {salidas.isError && !salidas.data ? (
         <ErrorCarga error={salidas.error} onReintentar={() => salidas.refetch()} />
       ) : null}

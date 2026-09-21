@@ -18,7 +18,7 @@ const SECCIONES: { href: string; etiqueta: string; icono: Icono }[] = [
   { href: '/(admin)/precios', etiqueta: 'Listas de precios', icono: 'tag-multiple' },
   { href: '/(reparto)/pesada', etiqueta: 'Balanza', icono: 'scale' },
   { href: '/(reparto)/carga', etiqueta: 'Carga', icono: 'truck-check' },
-  { href: '/(admin)/flota', etiqueta: 'Flota en vivo', icono: 'map-marker-radius' },
+  { href: '/(admin)/flota', etiqueta: 'Salidas', icono: 'truck' },
   { href: '/(admin)/rendicion', etiqueta: 'Rendición', icono: 'cash-register' },
   { href: '/(admin)/imprimir', etiqueta: 'Imprimir', icono: 'printer' },
   { href: '/(admin)/equipo', etiqueta: 'Equipo', icono: 'account-hard-hat' },

@@ -96,8 +96,6 @@ class CuentaACobrar(BaseModel):
     direccion: str
     telefono: str | None
     zona_id: uuid.UUID | None
-    lat: Decimal | None
-    lng: Decimal | None
     saldo: Importe
     pedidos_pendientes: int
     ultimo_pago: datetime | None

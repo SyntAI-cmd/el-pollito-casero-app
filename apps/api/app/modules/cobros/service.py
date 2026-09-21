@@ -485,8 +485,6 @@ async def cuentas_a_cobrar(sesion: AsyncSession, quien: Identidad) -> list[Cuent
                 direccion=cliente.direccion,
                 telefono=cliente.telefono,
                 zona_id=cliente.zona_id,
-                lat=cliente.lat,
-                lng=cliente.lng,
                 saldo=saldo,
                 pedidos_pendientes=len(pendientes),
                 ultimo_pago=ultimos.get(cliente.id),

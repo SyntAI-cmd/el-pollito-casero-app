@@ -8,7 +8,7 @@ from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, ConFechas, ConId
-from app.core.tipos import COORDENADA, IMPORTE, JSON_FLEX, FechaHora, enum_sql
+from app.core.tipos import IMPORTE, JSON_FLEX, FechaHora, enum_sql
 from app.domain.precios import Lista, Turno
 
 
@@ -32,8 +32,6 @@ class Cliente(ConId, ConFechas, Base):
     telefono: Mapped[str | None] = mapped_column(String(20), unique=True)
     direccion: Mapped[str] = mapped_column(String(250), default="")
     localidad: Mapped[str] = mapped_column(String(80), default="")
-    lat: Mapped[Decimal | None] = mapped_column(COORDENADA)
-    lng: Mapped[Decimal | None] = mapped_column(COORDENADA)
     zona_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("zonas.id"), index=True)
     lista: Mapped[Lista] = mapped_column(enum_sql(Lista, "lista_precio"), default=Lista.MAYORISTA)
     turno: Mapped[Turno] = mapped_column(enum_sql(Turno, "turno"), default=Turno.MANANA)

@@ -4,7 +4,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Mapa } from '@/components/Mapa';
 import { Boton, BotonIcono } from '@/components/ui/Boton';
 import { Campo } from '@/components/ui/Campo';
 import { Badge, Stepper } from '@/components/ui/Estado';
@@ -84,24 +83,11 @@ export default function EntregaEnCurso() {
   if (!p) return <Pantalla sinNav>{null}</Pantalla>;
 
   const pesado = p.sin_pesar.length === 0;
-  const puntos =
-    p.cliente_lat && p.cliente_lng
-      ? [
-          {
-            lat: Number(p.cliente_lat),
-            lng: Number(p.cliente_lng),
-            titulo: p.cliente_nombre,
-            tipo: 'destino' as const,
-          },
-        ]
-      : [];
 
   return (
     <>
       <Stack.Screen options={{ title: `Pedido #${p.numero}` }} />
       <Pantalla sinNav refrescando={pedido.isFetching} onRefrescar={() => pedido.refetch()}>
-        <Mapa puntos={puntos} />
-
         <View className="flex-row items-center justify-between">
           <View>
             <Texto variante="label-caps" tono="suave">

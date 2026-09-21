@@ -86,8 +86,6 @@ class PedidoSalida(BaseModel):
     cliente_nombre: str
     cliente_direccion: str
     cliente_telefono: str | None
-    cliente_lat: Decimal | None
-    cliente_lng: Decimal | None
     estado: Estado
     turno: Turno
     fecha_reparto: date

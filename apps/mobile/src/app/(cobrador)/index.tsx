@@ -91,12 +91,9 @@ export default function CuentasACobrar() {
                 icono="navigation-variant"
                 etiqueta="Cómo llegar"
                 onPress={() =>
-                  Linking.openURL(
-                    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-                      c.lat && c.lng ? `${c.lat},${c.lng}` : c.direccion || c.nombre,
-                    )}`,
-                  )
+                  Linking.openURL(`geo:0,0?q=${encodeURIComponent(c.direccion || c.nombre)}`)
                 }
+                disabled={!c.direccion}
               />
               <View className="flex-1">
                 <Boton
