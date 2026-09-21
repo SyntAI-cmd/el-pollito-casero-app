@@ -88,13 +88,21 @@ const autenticacion: Middleware = {
     return request;
   },
   async onResponse({ request, response }) {
-    if (response.status !== 401 || request.url.includes('/auth/')) return response;
-    if (!(await refrescarSesion())) return response;
+    // Sin cambios se devuelve undefined: openapi-fetch exige que lo que se devuelva sea
+    // `instanceof Response`, y en React Native la respuesta de fetch no siempre lo es.
+    if (response.status !== 401 || request.url.includes('/auth/')) return undefined;
+    if (!(await refrescarSesion())) return undefined;
     const reintento = new Request(request, {
       headers: new Headers(request.headers),
     });
     reintento.headers.set('Authorization', `Bearer ${useSesion.getState().acceso}`);
-    return fetch(reintento);
+    const respuesta = await fetch(reintento);
+    // Se reconstruye con el constructor global por el mismo motivo de arriba.
+    return new Response(await respuesta.arrayBuffer(), {
+      status: respuesta.status,
+      statusText: respuesta.statusText,
+      headers: respuesta.headers,
+    });
   },
 };
 
