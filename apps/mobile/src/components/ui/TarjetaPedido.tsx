@@ -25,9 +25,10 @@ export function resumenProductos(pedido: Pedido): string {
     .join(' · ');
 }
 
+/** Abre la app de mapas del celular con el domicilio escrito; el sistema no guarda coordenadas. */
 export function abrirNavegacion(pedido: Pedido): void {
   const destino = encodeURIComponent(pedido.cliente_direccion || pedido.cliente_nombre);
-  Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destino}`);
+  Linking.openURL(`geo:0,0?q=${destino}`);
 }
 
 export function llamar(telefono: string | null): void {
@@ -119,7 +120,7 @@ export function TarjetaPedido({
             />
           ) : (
             <Boton
-              texto="Cómo llegar (GPS)"
+              texto="Cómo llegar"
               variante="secundario"
               icono="navigation-variant"
               onPress={() => abrirNavegacion(pedido)}

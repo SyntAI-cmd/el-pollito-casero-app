@@ -37,6 +37,7 @@ export default function LayoutAdmin() {
   const ruta = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  if (!rol) return null; // sin sesión manda el layout raíz, para no redirigir de a dos
   if (rol !== 'admin') return <Redirect href="/" />;
   const escritorio = width >= 1024;
 

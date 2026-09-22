@@ -155,7 +155,7 @@ export default function EntregaEnCurso() {
             />
             <View className="flex-1">
               <Boton
-                texto="Cómo llegar (GPS)"
+                texto="Cómo llegar"
                 variante="secundario"
                 icono="navigation-variant"
                 onPress={() => abrirNavegacion(p)}

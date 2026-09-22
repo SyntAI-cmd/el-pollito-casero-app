@@ -13,6 +13,7 @@ const ITEMS = [
 
 export default function LayoutReparto() {
   const rol = useSesion((s) => s.usuario?.rol ?? null);
+  if (!rol) return null; // sin sesión manda el layout raíz, para no redirigir de a dos
   if (rol !== 'preventista' && rol !== 'admin') return <Redirect href="/" />;
   return (
     <Tabs

@@ -9,12 +9,13 @@ import {
 } from '@expo-google-fonts/inter';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import * as Network from 'expo-network';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
+import { ApiError } from '@/lib/api';
 import { useCola } from '@/lib/cola';
 import { useTiempoReal } from '@/lib/consultas';
 import { registrarPush } from '@/lib/push';
@@ -24,7 +25,15 @@ import { tokens } from '@/theme/tokens';
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
+  defaultOptions: {
+    queries: {
+      // Solo se reintenta la red. Un 401 (sesión vencida) o un 4xx se muestran: reintentarlos
+      // dispara otra vuelta de refresh y deja la app dando vueltas en lugar de ir al login.
+      retry: (intentos, error) =>
+        error instanceof ApiError ? error.esDeRed && intentos < 1 : intentos < 1,
+      staleTime: 15_000,
+    },
+  },
 });
 
 /** Vive dentro del QueryClientProvider: cola offline, red y canal en tiempo real. */
@@ -76,10 +85,23 @@ export default function RootLayout() {
   });
   const sesionLista = useSesion((s) => s.lista);
   const restaurar = useSesion((s) => s.restaurar);
+  const usuario = useSesion((s) => s.usuario);
+  const router = useRouter();
+  const segmentos = useSegments();
 
   useEffect(() => {
     restaurar();
   }, [restaurar]);
+
+  /**
+   * Cuando se cae la sesión (vence el refresh, la revocan, se reinicia el servidor) el envío al
+   * login se decide en un solo lugar. Si además lo decidiera cada grupo de rutas, las pantallas
+   * que quedan montadas se redirigen entre sí en cada render y la app se cuelga.
+   */
+  useEffect(() => {
+    if (!sesionLista || usuario) return;
+    if (segmentos[0] !== 'login') router.replace('/login');
+  }, [sesionLista, usuario, segmentos, router]);
 
   useEffect(() => {
     if (fuentesListas && sesionLista) SplashScreen.hideAsync();

@@ -29,3 +29,8 @@ desktop.ini
 
 # Archivos subidos y documentos generados en desarrollo
 apps/api/data/
+
+# Bases SQLite locales (tests o arranque sin DATABASE_URL)
+*.sqlite
+*.sqlite3
+apps/api/*.db

@@ -48,7 +48,7 @@ const almacen = {
   },
 };
 
-export const useSesion = create<Sesion>((set) => ({
+export const useSesion = create<Sesion>((set, get) => ({
   acceso: null,
   refresh: null,
   usuario: null,
@@ -58,6 +58,10 @@ export const useSesion = create<Sesion>((set) => ({
     await almacen.guardar(JSON.stringify(tokens));
   },
   cerrar: async () => {
+    // Idempotente a propósito: cuando vence la sesión fallan varias consultas a la vez y todas
+    // llaman acá. Sin esta guarda, cada llamada vuelve a renderizar el árbol entero mientras se
+    // navega al login y React corta con "Maximum update depth exceeded" (pantalla en blanco).
+    if (get().acceso === null && get().usuario === null) return;
     set({ acceso: null, refresh: null, usuario: null, lista: true });
     await almacen.guardar(null);
   },
